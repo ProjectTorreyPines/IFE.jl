@@ -47,7 +47,7 @@ function FUSE._step(actor::ActorIFEBlanket)
     par = actor.par
     empty!(dd.blanket)
 
-    layers = dd.ife_build.layer
+    layers = dd.build.layer
 
     # find d1 (wall), d2 (blanket), d3 (shield or vessel) by type
     d1_idx = findfirst(l -> !IMASdd.ismissing(l, :type) && l.type == Int(IMAS._wall_), layers)
@@ -58,7 +58,7 @@ function FUSE._step(actor::ActorIFEBlanket)
     end
 
     if d2_idx === nothing
-        @warn "No blanket layer found in ife_build for ActorIFEBlanket to do anything"
+        @warn "No blanket layer found in build for ActorIFEBlanket to do anything"
         return actor
     end
 
@@ -82,7 +82,7 @@ function FUSE._step(actor::ActorIFEBlanket)
     elseif r_in !== nothing
         wall_area = 4π * r_in^2
     else
-        error("ife_build blanket layer is missing both area and start_radius")
+        error("build blanket layer is missing both area and start_radius")
     end
     peak_wall_flux = total_power_neutrons / wall_area  # W/m²
 

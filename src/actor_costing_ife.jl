@@ -70,7 +70,7 @@ function FUSE._step(actor::ActorCostingIFE)
     ### IFE reactor systems
     reactor = resize!(cost_direct.system, "name" => "reactor")
 
-    for layer in dd.ife_build.layer
+    for layer in dd.build.layer
         c = cost_direct_capital_IFE(layer, da)
         if c > 0.0
             sub = resize!(reactor.subsystem, "name" => layer.name)
@@ -79,10 +79,10 @@ function FUSE._step(actor::ActorCostingIFE)
     end
 
     # Driver system
-    if !isempty(dd.ife_driver.beam)
+    if !isempty(dd.driver.beam)
         da.year_assessed = 1990
-        total_energy_MJ = sum(beam.energy for beam in dd.ife_driver.beam) / 1e6
-        n_drivers = length(dd.ife_driver.beam)
+        total_energy_MJ = sum(beam.energy for beam in dd.driver.beam) / 1e6
+        n_drivers = length(dd.driver.beam)
         driver_cost = FUSE.future_dollars(n_drivers * (par.driver_cost_fixed + par.driver_cost_per_MJ * total_energy_MJ), da)
         sub = resize!(reactor.subsystem, "name" => "driver system")
         sub.cost = driver_cost
@@ -161,7 +161,7 @@ end
 #= ========================= =#
 #  IFE direct capital costs   #
 #= ========================= =#
-function cost_direct_capital_IFE(layer::ife_build__layer, da::FUSE.DollarAdjust{T}) where {T<:Real}
+function cost_direct_capital_IFE(layer::build__layer, da::FUSE.DollarAdjust{T}) where {T<:Real}
     da.year_assessed = 2016
     ltype = layer.type
     if ltype == Int(IMAS._plasma_)

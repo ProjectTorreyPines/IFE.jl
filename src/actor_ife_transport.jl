@@ -3,7 +3,7 @@
 # Ported from joey_fork/FUSE.jl/src/actors/transport/ife_transport_actor.jl.
 # Sole adaptation: signature dispatches on `IFEdd.dd` instead of `IMAS.dd`.
 # The `IFEdd.dd` container embeds `core_profiles`, `core_sources`, `pellets`,
-# and the IFE-specific `ife_driver` — all that this actor reads/writes.
+# and the IFE-specific `driver` — all that this actor reads/writes.
 
 FUSE.@actor_parameters_struct ActorIFETransport{T} begin
     adiabat::FUSE.Entry{T} = FUSE.Entry{T}("-", "Adiabat of the compressed shell"; default=2.5)
@@ -23,7 +23,7 @@ end
 """
     ActorIFETransport(dd::IFEdd.dd, act::AbstractIFEParametersActors; kw...)
 
-Fills `dd.core_profiles` with a time history that mirrors the `dd.ife_driver`
+Fills `dd.core_profiles` with a time history that mirrors the `dd.driver`
 pulse trace. Hot temperature scale found via bisection so the profile-integrated
 fusion power matches the 0-D gain model (Trickey et al. 2024).
 
@@ -41,10 +41,10 @@ function FUSE._step(actor::ActorIFETransport)
     par = actor.par
 
     # --- read driver inputs ---
-    isempty(dd.ife_driver.beam) && return actor
-    beam = dd.ife_driver.beam[1]
+    isempty(dd.driver.beam) && return actor
+    beam = dd.driver.beam[1]
     (IMASdd.ismissing(beam, :energy) || IMASdd.ismissing(beam, :pulse_length)) && return actor
-    E_laser = sum(b.energy for b in dd.ife_driver.beam)  # total J per shot (all beams)
+    E_laser = sum(b.energy for b in dd.driver.beam)  # total J per shot (all beams)
     tau = beam.pulse_length                               # s (same for all beams)
 
     # --- read target radius ---
@@ -79,8 +79,8 @@ function FUSE._step(actor::ActorIFETransport)
     # Instantaneous fusion power during the laser pulse
     P_fus_target = G * E_laser / tau    # W
 
-    # --- ensure core_profiles has a slice for every ife_driver time point ---
-    driver_times = dd.ife_driver.time
+    # --- ensure core_profiles has a slice for every driver time point ---
+    driver_times = dd.driver.time
     for t in driver_times
         if !(t in dd.core_profiles.time)
             IMAS.new_timeslice!(dd.core_profiles, t)
@@ -122,7 +122,7 @@ function FUSE._step(actor::ActorIFETransport)
     ni_hot = [ni_cold[k] .* density_scale for k in eachindex(ni_cold)]
 
     # --- bisect on the first laser-on slice to find the hot temperature scale ---
-    i_on = findfirst(i -> sum(b.power_launched[i] for b in dd.ife_driver.beam) > 0,
+    i_on = findfirst(i -> sum(b.power_launched[i] for b in dd.driver.beam) > 0,
                      eachindex(driver_times))
     isnothing(i_on) && return actor
 
@@ -177,7 +177,7 @@ function FUSE._step(actor::ActorIFETransport)
     # --- fill every time slice: hot when laser is on, cold otherwise ---
     t_last_on = t_on
     for (i, t) in enumerate(driver_times)
-        P_laser = sum(b.power_launched[i] for b in dd.ife_driver.beam)
+        P_laser = sum(b.power_launched[i] for b in dd.driver.beam)
         dd.global_time = t
         cp1d = dd.core_profiles.profiles_1d[t]
         if P_laser > 0

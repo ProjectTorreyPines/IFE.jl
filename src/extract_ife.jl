@@ -17,14 +17,14 @@ using OrderedCollections: OrderedDict
 """
     ife_duty_cycle(ife::IFEdd.dd) -> Float64
 
-Return the IFE duty cycle `τ_pulse / T_rep` from `ife.ife_driver`.
+Return the IFE duty cycle `τ_pulse / T_rep` from `ife.driver`.
 Returns `NaN` if the driver is not populated.
 """
 function ife_duty_cycle(ife::IFEdd.dd)
-    isempty(ife.ife_driver.beam) && return NaN
-    isempty(ife.ife_driver.time) && return NaN
-    tau = ife.ife_driver.beam[1].pulse_length    # s
-    T_rep = ife.ife_driver.time[end]             # s
+    isempty(ife.driver.beam) && return NaN
+    isempty(ife.driver.time) && return NaN
+    tau = ife.driver.beam[1].pulse_length    # s
+    T_rep = ife.driver.time[end]             # s
     return tau / T_rep
 end
 
@@ -37,7 +37,7 @@ Power quantities (fusion, neutron, alpha, wall flux) are duty-cycle-averaged:
 `<P> = P_peak × (τ_pulse / T_rep)`.
 
 # Groups (joey reference, to be ported)
-- `:driver`      — laser/driver beam parameters         (ife.ife_driver)
+- `:driver`      — laser/driver beam parameters         (ife.driver)
 - `:target`      — pellet geometry and repetition rate  (dd.pellets)
 - `:plasma_peak` — hot-state plasma quantities          (dd.core_profiles)
 - `:power_avg`   — duty-cycle-averaged power, Q         (mixed)
@@ -80,7 +80,7 @@ extract_ife(dd::IFEdd.dd) = OrderedDict{Symbol,Any}(
 #     const IFEExtractFunctionsLibrary = OrderedDict{Symbol,IMAS.ExtractFunction}()
 #     function update_IFEExtractFunctionsLibrary!()
 #         # --- driver --- (IFE-only, can use `ife` directly)
-#         # EF(:driver, :E_driver, "MJ", (dd,ife) -> sum(b.energy for b in ife.ife_driver.beam)/1e6)
+#         # EF(:driver, :E_driver, "MJ", (dd,ife) -> sum(b.energy for b in ife.driver.beam)/1e6)
 #         # ...
 #         # --- target --- (uses dd.pellets, dd is IMAS.dd)
 #         # EF(:target, :R_target, "mm", (dd,ife) -> dd.pellets.launcher[1].shape.size[1]*1e3)

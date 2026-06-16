@@ -179,15 +179,15 @@ using FUSE
         # 2. init_ife! populates IFEdd.dd
         dd = IFEdd.dd()
         IFE.init_ife!(dd, ini, act)
-        @test length(dd.ife_build.layer) == 5
-        @test length(dd.ife_driver.beam) == 1
+        @test length(dd.build.layer) == 5
+        @test length(dd.driver.beam) == 1
         @test !isempty(dd.pellets.launcher)
         @test !isempty(dd.core_profiles.profiles_1d)
         @test !isempty(dd.core_sources.source)
         @test dd.requirements.tritium_breeding_ratio == 1.05
 
         # 3. IFE-only electricity dispatch works
-        P_wallplug = FUSE.electricity(dd.ife_driver)
+        P_wallplug = FUSE.electricity(dd.driver)
         @test P_wallplug > 0.0
         @test isfinite(P_wallplug)
 
@@ -196,7 +196,7 @@ using FUSE
 
         # 5. ActorIFETransport runs (0-D gain model).
         IFE.ActorIFETransport(dd, act)
-        @test length(dd.core_profiles.time) >= length(dd.ife_driver.time)
+        @test length(dd.core_profiles.time) >= length(dd.driver.time)
         cp1d_peak = dd.core_profiles.profiles_1d[dd.global_time]
         @test maximum(cp1d_peak.electrons.temperature) > ini.pellet.Te_core
 

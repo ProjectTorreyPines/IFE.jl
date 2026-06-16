@@ -14,8 +14,8 @@ Provides:
 - `init_ife!`, `init_costing!`, `extract_ife`
 
 All IFE-specific dispatches dispatch on at least one type owned by `IFE` or
-`IFEdd` (e.g. `IFEdd.dd`, `ife_driver`, `FUSEparameters__ActorIFE*`), so adding
-methods to `FUSE.*` / `IMAS.*` functions is not type piracy.
+`IFEdd` (e.g. `IFEdd.dd`, `IFEdd.driver`, `FUSEparameters__ActorIFE*`), so
+adding methods to `FUSE.*` / `IMAS.*` functions is not type piracy.
 
 Data containers and IDS types live in `IFEdd`; this package only adds
 parameters, actors, init logic, cases, and extract — i.e. orchestration.
@@ -36,7 +36,10 @@ using IMAS
 using FUSE
 using FUSE: ±
 using IFEdd
-using IFEdd: ife_build__layer   # not exported by IFEdd; needed by actor_costing_ife.jl
+# `dd, summary, build, driver` are NOT exported by IFEdd (they collide
+# name-wise with IMASdd). Import only the ones needed bare in dispatch
+# signatures below; everywhere else qualify as `IFEdd.X`.
+using IFEdd: driver, build__layer
 using Printf: @sprintf
 
 # IFE-owned abstract supertypes — must precede any file that uses them

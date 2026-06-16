@@ -8,7 +8,7 @@
 # Sections to populate (mapping joey_fork/IMAS.jl `ife` branch contents):
 # 1. extract_ife — `IMAS.extract`-style functions for IFE scenarios
 #    (cf. joey_fork/IMAS.jl/src/extract/extract_ife.jl, +128 lines)
-# 2. plot recipes — Plots.jl @recipe definitions for ife_build, ife_driver
+# 2. plot recipes — Plots.jl @recipe definitions for build, driver
 #    (cf. joey_fork/IMAS.jl/src/plot.jl IFE sections, +319 lines)
 
 # --- extract ---------------------------------------------------------------
@@ -17,5 +17,5 @@
 # entry point.
 
 # --- plot recipes ----------------------------------------------------------
-# TODO: add `@recipe function f(b::ife_build) ... end` etc. once Plots/RecipesBase
+# TODO: add `@recipe function f(b::build) ... end` etc. once Plots/RecipesBase
 # integration is in scope.

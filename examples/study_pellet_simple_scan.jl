@@ -77,7 +77,7 @@ FUSE.run(study)
 case_names = ["/case$(lpad(i, length(string(sty.n_simulations)), "0"))" for i in 1:sty.n_simulations]
 db = FUSE.load_study_database(joinpath(sty.save_folder, "database.h5"), case_names)
 
-E_drive  = [sum(b.energy for b in item.dd.ife_driver.beam) for item in db.items]   # J
+E_drive  = [sum(b.energy for b in item.dd.driver.beam) for item in db.items]   # J
 Pfus     = db.df[:, "Pfusion"]                                                     # W
 cost_lif = db.df[:, "capital_cost"]                                                # G$
 

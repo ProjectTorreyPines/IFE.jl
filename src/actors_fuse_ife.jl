@@ -3,7 +3,7 @@
 # This file lives inside the IFEdd module (not a package extension), so
 # `function FUSE.<name>(...)` directly adds methods to FUSE's generic
 # functions. Not a type-piracy concern: every dispatch involves at least one
-# IFEdd-owned type (e.g. `IFEdd.dd`, `ife_driver`).
+# IFEdd-owned type (e.g. `IFEdd.dd`, `driver`).
 
 # Actor parameters
 Base.@kwdef mutable struct FUSEparameters__ActorIFEAblation{T<:Real} <: FUSE.ParametersActor{T}
@@ -38,7 +38,7 @@ end
 function FUSE._step(actor::ActorIFEAblation)
     # TODO: actual IFE ablation calculation, e.g.
     # dd, par = actor.dd, actor.par
-    # dd.ife_summary.target.gain = compute_gain(dd.ife_driver, par.laser_energy)
+    # dd.summary.target.gain = compute_gain(dd.driver, par.laser_energy)
     return actor
 end
 

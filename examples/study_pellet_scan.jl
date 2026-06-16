@@ -205,7 +205,7 @@ println()
 #   case_path = joinpath(sty.save_folder, "database.h5", df.gparent[1])
 #   dd, ini_case, act_case = FUSE.load(case_path)
 #
-# `dd` is the per-case `IFEdd.dd` with ife_build, ife_driver, blanket, costing,
+# `dd` is the per-case `IFEdd.dd` with build, driver, blanket, costing,
 # core_profiles, balance_of_plant, etc. all populated.
 
 
@@ -222,7 +222,7 @@ acts = [db.items[k].act for k in 1:length(db.items)]
 dds = [db.items[k].dd for k in 1:length(db.items)]
 
 
-driver_energy = [sum(b.energy for b in item.dd.ife_driver.beam) for item in db.items]   # J
+driver_energy = [sum(b.energy for b in item.dd.driver.beam) for item in db.items]   # J
 fuel_radius   = [item.ini.pellet.fuel_radius for item in db.items]                       # m
 ablator_th    = [item.ini.pellet.ablator_thickness for item in db.items]                 # m
 hotspot_frac  = [item.ini.pellet.hotspot_fraction for item in db.items]                  # -

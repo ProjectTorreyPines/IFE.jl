@@ -104,7 +104,7 @@ end
     init_ife!(dd::IFEdd.dd, ini, act; layers_spec=nothing)
 
 Initialize `dd` for a simple spherically-symmetric IFE demo case from `ini`
-parameters. Populates `dd.ife_build`, `dd.pellets`, `dd.ife_driver`,
+parameters. Populates `dd.build`, `dd.pellets`, `dd.driver`,
 `dd.core_profiles`, and `dd.core_sources`; then calls FUSE's standard
 `init_balance_of_plant!` and `init_requirements!`.
 
@@ -126,11 +126,11 @@ function init_ife!(dd::IFEdd.dd, ini::AbstractIFEParametersInits, act::AbstractI
         ]
     end
 
-    # ---- ife_build ----
-    resize!(dd.ife_build.layer, length(layers_spec))
+    # ---- build ----
+    resize!(dd.build.layer, length(layers_spec))
     r = 0.0
     for (k, spec) in enumerate(layers_spec)
-        l = dd.ife_build.layer[k]
+        l = dd.build.layer[k]
         l.name = spec.name
         l.type = spec.type
         l.material = spec.material
@@ -181,16 +181,16 @@ function init_ife!(dd::IFEdd.dd, ini::AbstractIFEParametersInits, act::AbstractI
     abl_spec.label = p.ablator_material
     abl_spec.fraction = 1.0
 
-    # ---- ife_driver ----
+    # ---- driver ----
     tau      = d.pulse_length
     T_rep    = 1.0 / p.rep_rate
-    dd.ife_driver.time = [0.0, nextfloat(0.0), tau, nextfloat(tau), T_rep]
+    dd.driver.time = [0.0, nextfloat(0.0), tau, nextfloat(tau), T_rep]
 
-    resize!(dd.ife_driver.beam, d.n_drivers)
+    resize!(dd.driver.beam, d.n_drivers)
     energy_per_beam = d.energy / d.n_drivers
     P_peak = energy_per_beam / tau
     for k in 1:d.n_drivers
-        beam = dd.ife_driver.beam[k]
+        beam = dd.driver.beam[k]
         beam.name = d.n_drivers == 1 ? "IFE driver" : "IFE driver $k"
         beam.wavelength = d.wavelength
         beam.energy = energy_per_beam
