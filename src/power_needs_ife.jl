@@ -3,7 +3,7 @@
 # Two extensions on FUSE generic functions; both involve at least one
 # IFEdd-owned type, so neither is type piracy:
 #
-#   1. `FUSE.electricity(::driver)` — wall-plug power for the IFE driver.
+#   1. `FUSE.electricity(::IFEdd.driver)` — wall-plug power for the IFE driver.
 #
 #   2. `FUSE.ActorPowerNeeds(dd::IFEdd.dd, act, ...)` — outer constructor that
 #      overrides the standard `ActorPowerNeeds` pipeline for IFE scenarios.
@@ -15,12 +15,12 @@
 # `FUSE._step(::ActorPowerNeeds)`. All IFE knowledge lives here.
 
 """
-    FUSE.electricity(drv::driver)
+    FUSE.electricity(drv::IFEdd.driver)
 
 Wall-plug electric power of the IFE driver (W).
 `P_wallplug = (Σ_beam energy) / T_rep / η_conversion`.
 """
-function FUSE.electricity(drv::driver)
+function FUSE.electricity(drv::IFEdd.driver)
     isempty(drv.beam) && return 0.0
     isempty(drv.time) && return 0.0
     E_total = sum(b.energy for b in drv.beam)   # J per shot

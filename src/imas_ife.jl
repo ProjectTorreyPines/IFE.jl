@@ -17,5 +17,5 @@
 # entry point.
 
 # --- plot recipes ----------------------------------------------------------
-# TODO: add `@recipe function f(b::build) ... end` etc. once Plots/RecipesBase
+# TODO: add `@recipe function f(b::IFEdd.build) ... end` etc. once Plots/RecipesBase
 # integration is in scope.

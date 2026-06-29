@@ -36,10 +36,10 @@ using IMAS
 using FUSE
 using FUSE: ±
 using IFEdd
-# `dd, summary, build, driver` are NOT exported by IFEdd (they collide
-# name-wise with IMASdd). Import only the ones needed bare in dispatch
-# signatures below; everywhere else qualify as `IFEdd.X`.
-using IFEdd: driver, build__layer
+# IFEdd exports nothing. Dispatch signatures and type references throughout
+# this package qualify as `IFEdd.X` (e.g. `IFEdd.dd`, `IFEdd.driver`,
+# `IFEdd.build__layer`) so the IFE/IMAS distinction stays visible at every
+# call site.
 using Printf: @sprintf
 
 # IFE-owned abstract supertypes — must precede any file that uses them
