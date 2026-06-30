@@ -161,7 +161,7 @@ end
 #= ========================= =#
 #  IFE direct capital costs   #
 #= ========================= =#
-function cost_direct_capital_IFE(layer::IFEdd.build__layer, da::FUSE.DollarAdjust{T}) where {T<:Real}
+function cost_direct_capital_IFE(layer::IFEdd.AbstractIFEBuildLayer, da::FUSE.DollarAdjust{T}) where {T<:Real}
     da.year_assessed = 2016
     ltype = layer.type
     if ltype == Int(IMAS._plasma_)
