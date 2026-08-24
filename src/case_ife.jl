@@ -242,7 +242,7 @@ function init_ife!(dd::IFEdd.dd, ini::AbstractIFEParametersInits, act::AbstractI
 
     # NOTE: costing baseline (construction_start_year, inflation_rate, plant_lifetime,
     # availability, learning constants) is the caller's responsibility — call
-    # `FUSE.init_costing!(dd, act.ActorCosting)` before ActorCostingIFE.
+    # `IFE.init_costing!(dd, act.ActorCosting)` before ActorCostingIFE.
 
     return dd
 end

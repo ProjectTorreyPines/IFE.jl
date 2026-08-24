@@ -1,9 +1,9 @@
 # IFE-specific FUSE actors and method extensions.
 #
-# This file lives inside the IFEdd module (not a package extension), so
+# This file lives inside the IFE module (not a package extension), so
 # `function FUSE.<name>(...)` directly adds methods to FUSE's generic
 # functions. Not a type-piracy concern: every dispatch involves at least one
-# IFEdd-owned type (e.g. `IFEdd.dd`, `driver`).
+# IFE- or IFEdd-owned type (e.g. `IFEdd.dd`, `IFEdd.driver`).
 
 # Actor parameters
 Base.@kwdef mutable struct FUSEparameters__ActorIFEAblation{T<:Real} <: FUSE.ParametersActor{T}

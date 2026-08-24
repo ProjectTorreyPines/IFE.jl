@@ -2,7 +2,7 @@
 #
 # Ported from joey_fork/IMAS.jl/src/extract/extract_ife.jl. In joey's monolithic
 # fork, IMAS.dd held both standard IDS and IFE IDS, so all extract functions
-# took a single `dd::IMAS.dd`. Here IFE data lives in `IFEdd.dd` (this package)
+# took a single `dd::IMAS.dd`. Here IFE data lives in `IFEdd.dd` (the IFEdd package)
 # while standard IDS stays in `IMAS.dd`, so cross-container functions need two
 # arguments: `f(dd::IMAS.dd, ife::IFEdd.dd)`.
 #
@@ -33,22 +33,21 @@ end
 
 Extract key scalar quantities for an IFE case.
 
-Power quantities (fusion, neutron, alpha, wall flux) are duty-cycle-averaged:
-`<P> = P_peak × (τ_pulse / T_rep)`.
+Once the full registry is ported, power quantities (fusion, neutron, alpha,
+wall flux) will be duty-cycle-averaged: `<P> = P_peak × (τ_pulse / T_rep)`.
 
-# Groups (joey reference, to be ported)
-- `:driver`      — laser/driver beam parameters         (ife.driver)
-- `:target`      — pellet geometry and repetition rate  (dd.pellets)
-- `:plasma_peak` — hot-state plasma quantities          (dd.core_profiles)
-- `:power_avg`   — duty-cycle-averaged power, Q         (mixed)
-- `:neutronics`  — TBR, cycle-averaged peak wall flux   (dd.blanket, dd.neutronics)
-- `:bop`         — balance-of-plant electric output     (dd.balance_of_plant)
-- `:costing`     — capital cost, levelized CoE          (dd.costing)
+# Returns
+Currently only the entries computable without touching standard IDS:
 
-# Status
-TODO: port `IFEExtractFunctionsLibrary` from joey once the two-container
-`ExtractFunction` signature is decided (single-arg `dd ->` closures need to
-become two-arg `(dd, ife) ->` or close over `ife` at registration time).
+- `:duty_cycle`  — `ife_duty_cycle(ife)`
+- `:global_time` — `dd.global_time`
+
+# Not yet implemented
+The `IFEExtractFunctionsLibrary` port would add the `:driver`, `:target`,
+`:plasma_peak`, `:power_avg`, `:neutronics`, `:bop` and `:costing` groups.
+It is blocked on deciding the two-container `ExtractFunction` signature:
+single-arg `dd ->` closures need to become two-arg `(dd, ife) ->`, or close
+over `ife` at registration time.
 """
 function extract_ife(dd::IMAS.dd, ife::IFEdd.dd)
     # TODO: populate via IFEExtractFunctionsLibrary (see reference block below).

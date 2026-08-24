@@ -27,7 +27,6 @@ Load order matters (mirrors FUSE's actor → parameter container pattern):
 4. `parameters_actors_ife.jl`  — IFEParametersActors container (after actors,
                                  so `@insert_subtype_members` sees them)
 5. `extract_ife.jl`            — IFE scalar extract functions
-6. `imas_ife.jl`               — placeholder for IMAS-side IFE extensions
 """
 module IFE
 
@@ -64,9 +63,8 @@ include("case_ife.jl")
 # files so `@insert_subtype_members FUSE.ParametersActor` enumerates them.
 include("parameters_actors_ife.jl")
 
-# Extract + IMAS-side extension placeholder.
+# IFE scalar extract functions.
 include("extract_ife.jl")
-include("imas_ife.jl")
 
 export FUSEparameters__IFE__pellet, FUSEparameters__IFE__driver
 export AbstractIFEParametersInits, AbstractIFEParametersActors
