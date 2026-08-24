@@ -9,8 +9,6 @@ using FUSE
 
     @testset "Module loading — IFE-side symbols" begin
         # Actors
-        @test isdefined(IFE, :ActorIFEAblation)
-        @test isdefined(IFE, :FUSEparameters__ActorIFEAblation)
         @test isdefined(IFE, :ActorIFEBlanket)
         @test isdefined(IFE, :FUSEparameters__ActorIFEBlanket)
         @test isdefined(IFE, :ActorIFETransport)
@@ -36,9 +34,6 @@ using FUSE
     end
 
     @testset "Actor parameter structs instantiate" begin
-        par_ablation = IFE.FUSEparameters__ActorIFEAblation{Float64}()
-        @test par_ablation isa FUSE.ParametersActor{Float64}
-
         par_blanket = IFE.FUSEparameters__ActorIFEBlanket{Float64}()
         @test par_blanket isa FUSE.ParametersActor{Float64}
     end
@@ -75,7 +70,6 @@ using FUSE
         @test act isa IFE.AbstractIFEParametersActors{Float64}
         @test act isa FUSE.ParametersAllActors{Float64}
         # IFE-specific actors must be present
-        @test act.ActorIFEAblation isa IFE.FUSEparameters__ActorIFEAblation{Float64}
         @test act.ActorIFEBlanket isa IFE.FUSEparameters__ActorIFEBlanket{Float64}
         @test act.ActorIFETransport isa IFE.FUSEparameters__ActorIFETransport{Float64}
         @test act.ActorCostingIFE isa IFE.FUSEparameters__ActorCostingIFE{Float64}
@@ -137,7 +131,6 @@ using FUSE
         # Standard ini/act must not carry IFE fields
         @test !hasproperty(std_ini, :pellet)
         @test !hasproperty(std_ini, :driver)
-        @test !hasproperty(std_act, :ActorIFEAblation)
         @test !hasproperty(std_act, :ActorIFEBlanket)
         @test !hasproperty(std_act, :ActorIFETransport)
         @test !hasproperty(std_act, :ActorCostingIFE)
