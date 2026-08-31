@@ -18,7 +18,10 @@ Measurements = "2"
 julia = "1.11"
 
 [extras]
+# FUSE's `parallel_environment` evaluates `using Distributed` in `Main` even for
+# a zero-worker study, so constructing a study in a test needs it on the path.
+Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test"]
+test = ["Distributed", "Test"]

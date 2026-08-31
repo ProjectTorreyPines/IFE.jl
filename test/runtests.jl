@@ -6,6 +6,11 @@ using IMAS
 using FUSE
 import Measurements
 
+# Workflow for the StudyDatabaseGenerator testset. Top level so it is an ordinary
+# function. The study only needs a populated container; the full actor sequence
+# is covered by "End-to-end IFE workflow".
+ife_study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.ParametersAllActors) = IFE.init_ife!(dd, ini, act)
+
 @testset "IFE" begin
 
     @testset "Module loading — IFE-side symbols" begin
@@ -250,6 +255,34 @@ import Measurements
         @test 0.0 < xtract[:duty_cycle].value < 1.0
         @test xtract[:Q_target].value > 0.0
         @test xtract[:TBR].value > 0.0
+    end
+
+    @testset "StudyDatabaseGenerator on IFEdd.dd" begin
+        # FUSE's study runner builds the container itself, so unlike the actors
+        # it cannot be reached by dispatch — `dd_type` is what lets it build an
+        # `IFEdd.dd`. Nothing else here covers that FUSE-side path.
+        ini, act = FUSE.case_parameters(:IFE)
+
+        sty = FUSE.study_parameters(:DatabaseGenerator)
+        sty.server = "localhost"
+        sty.n_workers = 0 # master process only; pmap distribution is FUSE's concern
+        sty.file_save_mode = :overwrite
+        sty.save_folder = mktempdir()
+        sty.n_simulations = 1
+        sty.database_policy = :single_hdf5
+
+        study = FUSE.StudyDatabaseGenerator(sty, ini, act; dd_type=IFEdd.dd)
+        @test study.dd_type === IFEdd.dd
+        study.workflow = ife_study_workflow
+
+        FUSE.run(study)
+        @test study.dataframe[1, :status] == "success"
+
+        # The saved container comes back as `IFEdd.dd`: FUSE resolves the type
+        # from the file's `concrete_type` attribute. `pattern` skips ini/act,
+        # whose reader still hardcodes `FUSE.ParametersInits`.
+        db = FUSE.load_study_database(joinpath(sty.save_folder, "database.h5"), ["/case1"]; pattern=r"^dd")
+        @test db.items[1].dd isa IFEdd.dd
     end
 
 end
