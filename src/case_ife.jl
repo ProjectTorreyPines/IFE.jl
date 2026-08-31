@@ -82,11 +82,14 @@ end
 
 Populate `dd.costing` baseline fields (construction_start_year, future.inflation_rate,
 plant_lifetime, availability, HTS learning constants) from `par` defaults.
-Required before `ActorCostingIFE` since the standard `FUSE.ActorCosting`
-would trip on magnetic-only IDS in an IFE container.
 
-`par.*` are `Measurement{Float64}`; `IFEdd.dd{Float64}.costing` fields are
-plain Float64, so we extract the nominal `.val` component.
+Optional. `ActorCostingIFE` writes the same baseline onto its own
+`Measurement{Float64}` workspace, so the cost model does not depend on this
+having been called. Use it to make the baseline visible in a plain container.
+
+`par.*` are `Measurement{Float64}` while `IFEdd.dd{Float64}.costing` fields are
+plain Float64, so the nominal `.val` component is extracted here. The
+uncertainties survive on `ActorCostingIFE.ddR`.
 
 Not type piracy — `dd::IFEdd.dd` is an IFEdd-owned type.
 """
@@ -240,9 +243,10 @@ function init_ife!(dd::IFEdd.dd, ini::AbstractIFEParametersInits, act::AbstractI
     FUSE.init_balance_of_plant!(dd, ini, act)
     FUSE.init_requirements!(dd, ini, act)
 
-    # NOTE: costing baseline (construction_start_year, inflation_rate, plant_lifetime,
-    # availability, learning constants) is the caller's responsibility — call
-    # `IFE.init_costing!(dd, act.ActorCosting)` before ActorCostingIFE.
+    # NOTE: the costing baseline (construction_start_year, inflation_rate,
+    # plant_lifetime, availability, learning constants) is applied by
+    # `ActorCostingIFE` itself. Call `IFE.init_costing!(dd, act.ActorCosting)` only
+    # if you also want it mirrored into this plain-Float64 container.
 
     return dd
 end

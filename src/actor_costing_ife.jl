@@ -5,35 +5,65 @@
 # bop_powers, cost_*_ARIES) are accessed via FUSE namespace and rely on the
 # Phase 3 signature relaxations on FUSE side.
 
+# Cost entries are pinned to `Measurement{Float64}` rather than the container's `T`:
+# `act` is an `IFEParametersActors{Float64}`, so `Entry{T}` would resolve to
+# `Entry{Float64}` and could not hold a `±` value. Pinning keeps the field types
+# concrete and inference-stable regardless of `P`. Defaults follow joey.
 FUSE.@actor_parameters_struct ActorCostingIFE{T} begin
-    # NOTE: joey uses `Measurement{Float64}` here to propagate cost uncertainty.
-    # First-pass IFEdd port uses plain `T` so the type matches `IFEdd.dd{Float64}.costing`
-    # (a plain Float64 IDS). Restoring uncertainty propagation requires either
-    # promoting IFEdd.dd to Measurement{Float64} (joey's `IMAS.get_timeslice` pattern)
-    # or wrapping all cost writes to extract nominal values.
-    land_space::FUSE.Entry{T} = FUSE.Entry{T}("acres", "Plant site space required"; default=1000.0)
-    building_volume::FUSE.Entry{T} = FUSE.Entry{T}("m^3", "Volume of the IFE building"; default=140e3)
-    interest_rate::FUSE.Entry{T} = FUSE.Entry{T}("-", "Annual interest rate fraction of direct capital cost"; default=0.05)
-    indirect_cost_rate::FUSE.Entry{T} = FUSE.Entry{T}("-",
+    land_space::FUSE.Entry{Measurement{Float64}} =
+        FUSE.Entry{Measurement{Float64}}("acres", "Plant site space required"; default=1000.0 ± 100.0)
+    building_volume::FUSE.Entry{Measurement{Float64}} =
+        FUSE.Entry{Measurement{Float64}}("m^3", "Volume of the IFE building"; default=140e3 ± 14e3)
+    interest_rate::FUSE.Entry{Measurement{Float64}} =
+        FUSE.Entry{Measurement{Float64}}("-", "Annual interest rate fraction of direct capital cost"; default=0.05 ± 0.01)
+    indirect_cost_rate::FUSE.Entry{Measurement{Float64}} = FUSE.Entry{Measurement{Float64}}("-",
         "Indirect cost associated with construction, equipment, services, engineering construction management and owners cost";
-        default=0.4)
-    escalation_fraction::FUSE.Entry{T} = FUSE.Entry{T}("-", "Yearly escalation fraction based on risk assessment"; default=0.05)
-    blanket_lifetime::FUSE.Entry{T} = FUSE.Entry{T}("year", "Lifetime of the blanket"; default=7.0)
-    driver_cost_fixed::FUSE.Entry{T} =
-        FUSE.Entry{T}("M\$", "Fixed capital cost of IFE driver system at zero drive energy (1990 US\$)"; default=154.3)
-    driver_cost_per_MJ::FUSE.Entry{T} =
-        FUSE.Entry{T}("M\$/MJ", "Variable capital cost of IFE driver per MJ of drive energy (1990 US\$)"; default=111.4)
-    cost_per_pellet::FUSE.Entry{T} =
-        FUSE.Entry{T}("\$", "Target fabrication cost per pellet"; default=0.0)
+        default=0.4 ± 0.01)
+    escalation_fraction::FUSE.Entry{Measurement{Float64}} =
+        FUSE.Entry{Measurement{Float64}}("-", "Yearly escalation fraction based on risk assessment"; default=0.05 ± 0.01)
+    blanket_lifetime::FUSE.Entry{Measurement{Float64}} =
+        FUSE.Entry{Measurement{Float64}}("year", "Lifetime of the blanket"; default=7.0 ± 1.0)
+    driver_cost_fixed::FUSE.Entry{Measurement{Float64}} =
+        FUSE.Entry{Measurement{Float64}}("M\$", "Fixed capital cost of IFE driver system at zero drive energy (1990 US\$)"; default=154.3 ± 30.0)
+    driver_cost_per_MJ::FUSE.Entry{Measurement{Float64}} =
+        FUSE.Entry{Measurement{Float64}}("M\$/MJ", "Variable capital cost of IFE driver per MJ of drive energy (1990 US\$)"; default=111.4 ± 20.0)
+    cost_per_pellet::FUSE.Entry{Measurement{Float64}} =
+        FUSE.Entry{Measurement{Float64}}("\$", "Target fabrication cost per pellet"; default=0.0 ± 0.0)
 end
 
+# `ddR` is the uncertainty workspace: costs are computed on a `Measurement{Float64}`
+# promotion of the user's container, then written back as nominal values in
+# `_finalize`. Mirrors `FUSE.ActorCosting`, which promotes with the same
+# `get_timeslice` call and pins its sub-actor to `Measurement{Float64}`.
+#
+# `get_timeslice` builds the result via `Base.typename(typeof(ids)).wrapper{el_type}`,
+# so its return type is not inferrable. Declaring `ddR` as a concrete type stops that
+# instability at the struct boundary: it costs one dynamic dispatch in the constructor
+# and leaves the whole of `_step` operating on concrete types.
 mutable struct ActorCostingIFE{D,P} <: FUSE.SingleAbstractActor{D,P}
     dd::IFEdd.dd{D}
     par::FUSE.OverrideParameters{P,FUSEparameters__ActorCostingIFE{P}}
-    function ActorCostingIFE(dd::IFEdd.dd{D}, par::FUSEparameters__ActorCostingIFE{P}; kw...) where {D<:Real,P<:Real}
+    ddR::IFEdd.dd{Measurement{Float64}}
+    function ActorCostingIFE(
+        dd::IFEdd.dd{D},
+        par::FUSEparameters__ActorCostingIFE{P},
+        cst::FUSE.FUSEparameters__ActorCosting{P};
+        kw...
+    ) where {D<:Real,P<:Real}
         FUSE.logging_actor_init(ActorCostingIFE)
         par = FUSE.OverrideParameters(par; kw...)
-        return new{D,P}(dd, par)
+        ddR = IMAS.get_timeslice(Measurement{Float64}, dd)
+        # Costing baseline, uncertainties intact. `init_costing!` writes the same
+        # values into the plain-Float64 container for inspection; this is the copy
+        # the cost model actually reads, so the actor does not depend on the caller
+        # having run it.
+        ddR.costing.construction_start_year = cst.construction_start_year
+        ddR.costing.future.inflation_rate = cst.future_inflation_rate
+        ddR.costing.plant_lifetime = cst.plant_lifetime
+        ddR.costing.availability = cst.availability
+        ddR.costing.future.learning.hts.production_increase = cst.production_increase
+        ddR.costing.future.learning.hts.learning_rate = cst.learning_rate
+        return new{D,P}(dd, par, ddR)
     end
 end
 
@@ -46,14 +76,14 @@ costing methodology adapted to the ARIES cost account structure.
 Stores data in `dd.costing` with detailed breakdown by system and subsystem.
 """
 function ActorCostingIFE(dd::IFEdd.dd, act::AbstractIFEParametersActors; kw...)
-    actor = ActorCostingIFE(dd, act.ActorCostingIFE; kw...)
+    actor = ActorCostingIFE(dd, act.ActorCostingIFE, act.ActorCosting; kw...)
     FUSE.step(actor)
     FUSE.finalize(actor)
     return actor
 end
 
 function FUSE._step(actor::ActorCostingIFE)
-    dd = actor.dd
+    dd = actor.ddR
     par = actor.par
     cst = dd.costing
 
@@ -123,7 +153,7 @@ function FUSE._step(actor::ActorCostingIFE)
     sub = resize!(sys.subsystem, "name" => "blanket_replacement")
     sub.yearly_cost = FUSE.cost_operations_ARIES(:blanket_replacement, blanket_cost, par.blanket_lifetime, da)
 
-    rep_rate = isempty(dd.pellets.time_slice) ? 0.0 : dd.pellets.time_slice[].pellet[1].frequency
+    rep_rate = isempty(dd.pellets.time_slice) ? zero(eltype(dd)) : dd.pellets.time_slice[].pellet[1].frequency
     pellet_yearly_cost = par.cost_per_pellet * rep_rate * 3600.0 * 24.0 * 365.0 * cst.availability / 1e6  # M$
     da.year_assessed = 2024
     sys = resize!(cost_ops.system, "name" => "target fabrication")
@@ -151,10 +181,13 @@ end
 Sort cost systems and subsystems by magnitude (descending) for easy inspection.
 """
 function FUSE._finalize(actor::ActorCostingIFE)
-    sort!(actor.dd.costing.cost_direct_capital.system; by=x -> x.cost, rev=true)
-    for sys in actor.dd.costing.cost_direct_capital.system
+    sort!(actor.ddR.costing.cost_direct_capital.system; by=x -> x.cost, rev=true)
+    for sys in actor.ddR.costing.cost_direct_capital.system
         sort!(sys.subsystem; by=x -> x.cost, rev=true)
     end
+    # `fill!` drops the uncertainty component, leaving nominal values in the
+    # user's Float64 container. The full distributions stay on `actor.ddR`.
+    fill!(actor.dd.costing, actor.ddR.costing)
     return actor
 end
 

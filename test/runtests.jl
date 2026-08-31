@@ -4,6 +4,7 @@ using IFEdd
 using IMASdd
 using IMAS
 using FUSE
+import Measurements
 
 @testset "IFE" begin
 
@@ -206,11 +207,29 @@ using FUSE
         hcd_idx = findfirst(s -> s.name == "HCD", bop_systems)
         @test hcd_idx !== nothing
 
-        # 8. ActorCostingIFE runs. Caller is responsible for costing baseline.
-        IFE.init_costing!(dd, act.ActorCosting)
-        IFE.ActorCostingIFE(dd, act)
+        # 8. ActorCostingIFE runs and applies its own costing baseline.
+        costing = IFE.ActorCostingIFE(dd, act)
         @test dd.costing.cost_lifetime > 0.0
-        @test dd.costing.levelized_CoE > 0.0
+
+        # Cost uncertainty propagates on the promoted workspace and is dropped
+        # on the way back into the plain-Float64 container.
+        @test costing.ddR isa IFEdd.dd{Measurements.Measurement{Float64}}
+        capital_R = costing.ddR.costing.cost_direct_capital.cost
+        @test Measurements.uncertainty(capital_R) > 0.0
+        @test Measurements.uncertainty(costing.ddR.costing.cost_lifetime) > 0.0
+        @test dd.costing.cost_direct_capital.cost isa Float64
+        @test dd.costing.cost_direct_capital.cost ≈ Measurements.value(capital_R)
+
+        # Every actor field must stay concrete: `get_timeslice` is not inferrable,
+        # so the struct boundary is what keeps `_step` type-stable.
+        @test all(isconcretetype(fieldtype(typeof(costing), f)) for f in fieldnames(typeof(costing)))
+
+        # 9. `init_costing!` stays available for mirroring the baseline into the
+        # plain container, and drops the uncertainty when it does.
+        dd.costing.plant_lifetime = 0.0
+        IFE.init_costing!(dd, act.ActorCosting)
+        @test dd.costing.plant_lifetime == Measurements.value(act.ActorCosting.plant_lifetime)
+        @test dd.costing.plant_lifetime isa Float64
     end
 
 end
