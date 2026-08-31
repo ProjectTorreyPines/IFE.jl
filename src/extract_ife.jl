@@ -1,16 +1,15 @@
 # IFE-specific extract functions.
 #
-# Ported from joey_fork/IMAS.jl/src/extract/extract_ife.jl. In joey's monolithic
-# fork, IMAS.dd held both standard IDS and IFE IDS, so all extract functions
-# took a single `dd::IMAS.dd`. Here IFE data lives in `IFEdd.dd` (the IFEdd package)
-# while standard IDS stays in `IMAS.dd`, so cross-container functions need two
-# arguments: `f(dd::IMAS.dd, ife::IFEdd.dd)`.
+# Ported from joey_fork/IMAS.jl/src/extract/extract_ife.jl. joey's monolithic
+# `IMAS.dd` carried both the standard IDS and the IFE IDS, so every extract
+# closure took a single `dd`. `IFEdd.dd` embeds the standard IDS subset it
+# needs, so the same single-argument shape carries over unchanged — the only
+# rename is `dd.ife_driver` -> `dd.driver`.
 #
-# Status:
-#   - IFE-only functions (e.g. `ife_duty_cycle`) are fully active.
-#   - Cross-container functions (`extract_ife`, `IFEExtractFunctionsLibrary`)
-#     are scaffolded; the ExtractFunction registry is left as a TODO until the
-#     two-container ExtractFunction signature is decided.
+# `IMAS.ExtractFunction` and `IMAS.extract` both dispatch on the abstract
+# `IMAS.DD`, so they accept a satellite container with no change on the IMAS
+# side. Entries that raise are recorded on the `ExtractFunction` rather than
+# propagating, which is how a partially populated `dd` still extracts.
 
 using OrderedCollections: OrderedDict
 
@@ -28,65 +27,101 @@ function ife_duty_cycle(ife::IFEdd.dd)
     return tau / T_rep
 end
 
+const IFEExtractFunctionsLibrary = OrderedDict{Symbol,IMAS.ExtractFunction}()
+
 """
-    extract_ife(dd::IMAS.dd, ife::IFEdd.dd)
+    update_IFEExtractFunctionsLibrary!()
 
-Extract key scalar quantities for an IFE case.
-
-Once the full registry is ported, power quantities (fusion, neutron, alpha,
-wall flux) will be duty-cycle-averaged: `<P> = P_peak × (τ_pulse / T_rep)`.
-
-# Returns
-Currently only the entries computable without touching standard IDS:
-
-- `:duty_cycle`  — `ife_duty_cycle(ife)`
-- `:global_time` — `dd.global_time`
-
-# Not yet implemented
-The `IFEExtractFunctionsLibrary` port would add the `:driver`, `:target`,
-`:plasma_peak`, `:power_avg`, `:neutronics`, `:bop` and `:costing` groups.
-It is blocked on deciding the two-container `ExtractFunction` signature:
-single-arg `dd ->` closures need to become two-arg `(dd, ife) ->`, or close
-over `ife` at registration time.
+Rebuild [`IFEExtractFunctionsLibrary`](@ref) in place.
 """
-function extract_ife(dd::IMAS.dd, ife::IFEdd.dd)
-    # TODO: populate via IFEExtractFunctionsLibrary (see reference block below).
-    # Skeleton: emit only the IFE-only entries that can be computed without
-    # touching standard IDS; standard-IDS-dependent entries will land here as
-    # the registry is ported.
-    out = OrderedDict{Symbol,Any}()
-    out[:duty_cycle] = ife_duty_cycle(ife)
-    out[:global_time] = dd.global_time
-    return out
+function update_IFEExtractFunctionsLibrary!()
+    IEFL = IFEExtractFunctionsLibrary
+    empty!(IEFL)
+
+    function EF(group::Symbol, name::Symbol, units::String, func::Function)
+        xfun = IMAS.ExtractFunction(group, name, units, func)
+        IEFL[name] = xfun
+        return xfun
+    end
+
+    #! format: off
+
+    # --- driver ---
+    EF(:driver, :E_driver,       "MJ",  dd -> sum(b.energy for b in dd.driver.beam) / 1e6)
+    EF(:driver, :rep_rate,       "Hz",  dd -> 1.0 / dd.driver.time[end])
+    EF(:driver, :tau_pulse,      "ns",  dd -> dd.driver.beam[1].pulse_length * 1e9)
+    EF(:driver, :duty_cycle,     "-",   dd -> ife_duty_cycle(dd))
+    EF(:driver, :n_beams,        "-",   dd -> Float64(length(dd.driver.beam)))
+    EF(:driver, :eta_conversion, "-",   dd -> dd.driver.beam[1].efficiency.conversion)
+    EF(:driver, :eta_coupling,   "-",   dd -> dd.driver.beam[1].efficiency.coupling)
+    EF(:driver, :P_driver_avg,   "MW",  dd -> IEFL[:E_driver](dd) * IEFL[:rep_rate](dd))
+
+    # --- target ---
+    EF(:target, :R_target,       "mm",  dd -> dd.pellets.launcher[1].shape.size[1] * 1e3)
+    EF(:target, :R_fuel,         "mm",  dd -> begin
+        layer = dd.pellets.time_slice[].pellet[1].layer
+        (layer[1].thickness + layer[2].thickness) * 1e3
+    end)
+    EF(:target, :R_hotspot,      "mm",  dd -> dd.pellets.time_slice[].pellet[1].layer[1].thickness * 1e3)
+    EF(:target, :ablator,        "-",   dd -> dd.pellets.time_slice[].pellet[1].layer[3].species[1].label)
+    EF(:target, :rep_rate_pellet,"Hz",  dd -> dd.pellets.time_slice[].pellet[1].frequency)
+
+    # --- hot-state (peak) plasma quantities at dd.global_time = τ_pulse ---
+    EF(:plasma_peak, :Te0_peak,  "keV", dd -> dd.core_profiles.profiles_1d[].electrons.temperature[1] / 1e3)
+    EF(:plasma_peak, :ne0_peak,  "m⁻³", dd -> dd.core_profiles.profiles_1d[].electrons.density_thermal[1])
+    EF(:plasma_peak, :P_fus_peak,"GW",  dd -> IMAS.fusion_power(dd) / 1e9)
+
+    # --- duty-cycle-averaged power quantities ---
+    EF(:power_avg, :P_fus_avg,    "MW",  dd -> IMAS.fusion_power(dd) / 1e6 * ife_duty_cycle(dd))
+    EF(:power_avg, :P_neutron_avg,"MW",  dd -> IMAS.fusion_neutron_power(dd) / 1e6 * ife_duty_cycle(dd))
+    EF(:power_avg, :P_alpha_avg,  "MW",  dd -> IMAS.fusion_plasma_power(dd) / 1e6 * ife_duty_cycle(dd))
+    EF(:power_avg, :Q_target,     "-",   dd -> IEFL[:P_fus_avg](dd) / IEFL[:P_driver_avg](dd))
+
+    # --- neutronics ---
+    EF(:neutronics, :TBR,         "-",   dd -> IMAS.@ddtime(dd.blanket.tritium_breeding_ratio))
+    EF(:neutronics, :peak_wall_flux_avg, "MW/m²", dd -> begin
+        dc = ife_duty_cycle(dd)
+        maximum(sqrt.(dd.neutronics.time_slice[].wall_loading.flux_r .^ 2 .+
+                      dd.neutronics.time_slice[].wall_loading.flux_z .^ 2)) / 1e6 * dc
+    end)
+
+    # --- balance of plant ---
+    EF(:bop, :P_electric_generated, "MW",  dd -> IMAS.@ddtime(dd.balance_of_plant.power_plant.power_electric_generated) / 1e6)
+    EF(:bop, :P_electric_net,       "MW",  dd -> IMAS.@ddtime(dd.balance_of_plant.power_electric_net) / 1e6)
+    EF(:bop, :Q_plant,              "-",   dd -> IMAS.@ddtime(dd.balance_of_plant.Q_plant))
+    EF(:bop, :eta_thermal,          "%",   dd -> IMAS.@ddtime(dd.balance_of_plant.thermal_efficiency_plant) * 100.0)
+
+    # --- costing ---
+    EF(:costing, :capital_cost,   "\$B",    dd -> dd.costing.cost_direct_capital.cost / 1e3)
+    EF(:costing, :levelized_CoE,  "\$/kWh", dd -> dd.costing.levelized_CoE)
+
+    #! format: on
+
+    return IEFL
 end
+update_IFEExtractFunctionsLibrary!()
 
 """
     extract_ife(dd::IFEdd.dd)
 
-Single-container convenience for Mode B subset workflows. `IFEdd.dd` embeds the
-standard IDS subset, so the same container can play both roles in the
-two-arg form. Matches the call shape used in joey's monolithic fork
-(`extract_ife(dd)` where dd is a single IMAS.dd) for diff-friendly comparison.
-"""
-extract_ife(dd::IFEdd.dd) = OrderedDict{Symbol,Any}(
-    :duty_cycle  => ife_duty_cycle(dd),
-    :global_time => dd.global_time,
-)
+Extract key scalar quantities for an IFE case from `dd`.
 
-# Reference: joey_fork/IMAS.jl/src/extract/extract_ife.jl L22-L99
-# IFEExtractFunctionsLibrary registration. To be ported in the next step.
-#
-#     const IFEExtractFunctionsLibrary = OrderedDict{Symbol,IMAS.ExtractFunction}()
-#     function update_IFEExtractFunctionsLibrary!()
-#         # --- driver --- (IFE-only, can use `ife` directly)
-#         # EF(:driver, :E_driver, "MJ", (dd,ife) -> sum(b.energy for b in ife.driver.beam)/1e6)
-#         # ...
-#         # --- target --- (uses dd.pellets, dd is IMAS.dd)
-#         # EF(:target, :R_target, "mm", (dd,ife) -> dd.pellets.launcher[1].shape.size[1]*1e3)
-#         # ...
-#         # --- plasma_peak --- (uses dd.core_profiles, IMAS.fusion_power(dd))
-#         # --- power_avg ---   (mixed: ife_duty_cycle(ife) * IMAS.fusion_power(dd))
-#         # --- neutronics ---  (dd.blanket, dd.neutronics)
-#         # --- bop ---         (dd.balance_of_plant)
-#         # --- costing ---     (dd.costing)
-#     end
+Power quantities (fusion, neutron, alpha, wall flux) are duty-cycle-averaged:
+`<P> = P_peak × (τ_pulse / T_rep)`.
+
+Returns an `OrderedDict{Symbol,IMAS.ExtractFunction}` — the same type as
+`IMAS.extract(dd)` — so the standard `show`, `print_tiled` and HDF5 save
+methods all apply.
+
+# Groups
+- `:driver`      — driver beam energy, repetition rate, pulse length, efficiencies
+- `:target`      — pellet geometry and repetition rate
+- `:plasma_peak` — hot-state plasma quantities at `dd.global_time = τ_pulse`
+- `:power_avg`   — duty-cycle-averaged power and target gain Q
+- `:neutronics`  — TBR and cycle-averaged peak wall flux
+- `:bop`         — balance-of-plant electric output and efficiency
+- `:costing`     — capital cost and levelized cost of electricity
+"""
+function extract_ife(dd::IFEdd.dd)
+    return IMAS.extract(dd, IFEExtractFunctionsLibrary)
+end

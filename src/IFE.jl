@@ -72,6 +72,6 @@ export ActorIFEBlanket, FUSEparameters__ActorIFEBlanket
 export ActorIFETransport, FUSEparameters__ActorIFETransport
 export ActorCostingIFE, FUSEparameters__ActorCostingIFE
 export init_ife!, init_costing!
-export ife_duty_cycle, extract_ife
+export ife_duty_cycle, extract_ife, IFEExtractFunctionsLibrary
 
 end # module

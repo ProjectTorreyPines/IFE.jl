@@ -112,13 +112,18 @@ import Measurements
         @test which(IMAS.fusion_power, (typeof(std_dd),)) isa Method
     end
 
-    @testset "extract_ife stub — two-container signature" begin
-        dd = IMAS.dd()
-        ife = IFEdd.dd()
-        out = IFE.extract_ife(dd, ife)
-        @test out isa AbstractDict
-        @test haskey(out, :duty_cycle)
-        @test isnan(out[:duty_cycle])  # empty driver
+    @testset "IFEExtractFunctionsLibrary — shape and grouping" begin
+        # Same shape as joey's: 28 entries across seven groups, returned as
+        # `ExtractFunction`s so IMAS's show / print_tiled / HDF5 save all apply.
+        @test length(IFE.IFEExtractFunctionsLibrary) == 28
+        groups = unique(xf.group for xf in values(IFE.IFEExtractFunctionsLibrary))
+        @test Set(groups) == Set([:driver, :target, :plasma_peak, :power_avg,
+                                  :neutronics, :bop, :costing])
+
+        # An unpopulated container must not throw — failures are recorded per entry.
+        out = IFE.extract_ife(IFEdd.dd())
+        @test out isa AbstractDict{Symbol,IMAS.ExtractFunction}
+        @test length(out) == 28
     end
 
     @testset "Standard FUSE/IMAS path unaffected by IFE loading" begin
@@ -230,6 +235,21 @@ import Measurements
         IFE.init_costing!(dd, act.ActorCosting)
         @test dd.costing.plant_lifetime == Measurements.value(act.ActorCosting.plant_lifetime)
         @test dd.costing.plant_lifetime isa Float64
+
+        # 10. Extract reproduces joey's metric set on a populated container.
+        # Everything outside `:bop` must evaluate; the `:bop` group stays empty
+        # until a thermal cycle runs and fills `balance_of_plant.power_plant`.
+        xtract = IFE.extract_ife(dd)
+        failed = [k for (k, xf) in xtract if xf.error !== nothing]
+        @test all(xtract[k].group === :bop for k in failed)
+        @test count(xf -> xf.error === nothing, values(xtract)) == 24
+
+        @test xtract[:E_driver].value ≈ ini.driver.energy / 1e6
+        @test xtract[:n_beams].value == length(dd.driver.beam)
+        @test xtract[:ablator].value == ini.pellet.ablator_material
+        @test 0.0 < xtract[:duty_cycle].value < 1.0
+        @test xtract[:Q_target].value > 0.0
+        @test xtract[:TBR].value > 0.0
     end
 
 end
