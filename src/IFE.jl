@@ -33,7 +33,7 @@ module IFE
 using IMASdd
 using IMAS
 using FUSE
-using FUSE: ±
+using Measurements: Measurement, ±
 using IFEdd
 # IFEdd exports nothing. Dispatch signatures and type references throughout
 # this package qualify as `IFEdd.X` (e.g. `IFEdd.dd`, `IFEdd.driver`,

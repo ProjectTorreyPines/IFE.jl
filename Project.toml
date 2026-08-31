@@ -8,11 +8,13 @@ FUSE = "e64856f0-3bb8-4376-b4b7-c03396503992"
 IFEdd = "b7ef78e8-7dbb-4c2e-aaed-bb48b048103f"
 IMAS = "13ead8c1-b7d1-41bb-a6d0-5b8b65ed587a"
 IMASdd = "c5a45a97-b3f9-491c-b9a7-aa88c3bc0067"
+Measurements = "eff96d63-e80a-5855-80a2-b1b0885c5ab7"
 OrderedCollections = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
 [compat]
 IFEdd = "0.1"
+Measurements = "2"
 julia = "1.11"
 
 [extras]
