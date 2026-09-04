@@ -1,4 +1,4 @@
-# ActorCostingIFE — IFE plant costing (PROCESS methodology + ARIES accounts).
+# ActorCosting — IFE plant costing (PROCESS methodology + ARIES accounts).
 #
 # Ported from joey_fork/FUSE.jl/src/actors/costing/ife_costing_actor.jl.
 # Single-container signature: `dd::IFEdd.dd`. Helpers (DollarAdjust, future_dollars,
@@ -9,7 +9,18 @@
 # `act` is an `IFEParametersActors{Float64}`, so `Entry{T}` would resolve to
 # `Entry{Float64}` and could not hold a `±` value. Pinning keeps the field types
 # concrete and inference-stable regardless of `P`. Defaults follow joey.
-FUSE.@actor_parameters_struct ActorCostingIFE{T} begin
+FUSE.@actor_parameters_struct ActorCosting{T} begin
+    # Plant economics. Same definitions as `FUSE.ActorCosting`; owned here so an
+    # IFE `act` carries one costing parameter group, not two.
+    construction_start_year::FUSE.Entry{Measurement{Float64}} =
+        FUSE.Entry{Measurement{Float64}}("year", "Year that plant construction begins"; default=Dates.year(Dates.now()) + 10.0 ± 5.0)
+    future_inflation_rate::FUSE.Entry{Measurement{Float64}} =
+        FUSE.Entry{Measurement{Float64}}("-", "Predicted average rate of future inflation"; default=0.025 ± 0.0125)
+    plant_lifetime::FUSE.Entry{Measurement{Float64}} =
+        FUSE.Entry{Measurement{Float64}}("year", "Lifetime of the plant"; default=35.0 ± 5.0)
+    availability::FUSE.Entry{Measurement{Float64}} =
+        FUSE.Entry{Measurement{Float64}}("-", "Availability fraction of the plant"; default=0.8 ± 0.1)
+    # IFE plant
     land_space::FUSE.Entry{Measurement{Float64}} =
         FUSE.Entry{Measurement{Float64}}("acres", "Plant site space required"; default=1000.0 ± 100.0)
     building_volume::FUSE.Entry{Measurement{Float64}} =
@@ -40,49 +51,44 @@ end
 # so its return type is not inferrable. Declaring `ddR` as a concrete type stops that
 # instability at the struct boundary: it costs one dynamic dispatch in the constructor
 # and leaves the whole of `_step` operating on concrete types.
-mutable struct ActorCostingIFE{D,P} <: FUSE.SingleAbstractActor{D,P}
+mutable struct ActorCosting{D,P} <: FUSE.SingleAbstractActor{D,P}
     dd::IFEdd.dd{D}
-    par::FUSE.OverrideParameters{P,FUSEparameters__ActorCostingIFE{P}}
+    par::FUSE.OverrideParameters{P,FUSEparameters__ActorCosting{P}}
     ddR::IFEdd.dd{Measurement{Float64}}
-    function ActorCostingIFE(
-        dd::IFEdd.dd{D},
-        par::FUSEparameters__ActorCostingIFE{P},
-        cst::FUSE.FUSEparameters__ActorCosting{P};
-        kw...
-    ) where {D<:Real,P<:Real}
-        FUSE.logging_actor_init(ActorCostingIFE)
+    function ActorCosting(dd::IFEdd.dd{D}, par::FUSEparameters__ActorCosting{P}; kw...) where {D<:Real,P<:Real}
+        FUSE.logging_actor_init(ActorCosting)
         par = FUSE.OverrideParameters(par; kw...)
+        empty!(dd.costing)
         ddR = IMAS.get_timeslice(Measurement{Float64}, dd)
+        FUSE.copy_workflow!(ddR, dd)
         # Costing baseline, uncertainties intact. `init_costing!` writes the same
         # values into the plain-Float64 container for inspection; this is the copy
         # the cost model actually reads, so the actor does not depend on the caller
         # having run it.
-        ddR.costing.construction_start_year = cst.construction_start_year
-        ddR.costing.future.inflation_rate = cst.future_inflation_rate
-        ddR.costing.plant_lifetime = cst.plant_lifetime
-        ddR.costing.availability = cst.availability
-        ddR.costing.future.learning.hts.production_increase = cst.production_increase
-        ddR.costing.future.learning.hts.learning_rate = cst.learning_rate
+        ddR.costing.construction_start_year = par.construction_start_year
+        ddR.costing.future.inflation_rate = par.future_inflation_rate
+        ddR.costing.plant_lifetime = par.plant_lifetime
+        ddR.costing.availability = par.availability
         return new{D,P}(dd, par, ddR)
     end
 end
 
 """
-    ActorCostingIFE(dd::IFEdd.dd, act::AbstractIFEParametersActors; kw...)
+    ActorCosting(dd::IFEdd.dd, act::AbstractIFEParametersActors; kw...)
 
 Estimates fusion power plant costs for an IFE plant using the PROCESS IFE
 costing methodology adapted to the ARIES cost account structure.
 
 Stores data in `dd.costing` with detailed breakdown by system and subsystem.
 """
-function ActorCostingIFE(dd::IFEdd.dd, act::AbstractIFEParametersActors; kw...)
-    actor = ActorCostingIFE(dd, act.ActorCostingIFE, act.ActorCosting; kw...)
+function ActorCosting(dd::IFEdd.dd, act::AbstractIFEParametersActors; kw...)
+    actor = ActorCosting(dd, act.ActorCosting; kw...)
     FUSE.step(actor)
     FUSE.finalize(actor)
     return actor
 end
 
-function FUSE._step(actor::ActorCostingIFE)
+function FUSE._step(actor::ActorCosting)
     dd = actor.ddR
     par = actor.par
     cst = dd.costing
@@ -176,11 +182,11 @@ function FUSE._step(actor::ActorCostingIFE)
 end
 
 """
-    _finalize(actor::ActorCostingIFE)
+    _finalize(actor::ActorCosting)
 
 Sort cost systems and subsystems by magnitude (descending) for easy inspection.
 """
-function FUSE._finalize(actor::ActorCostingIFE)
+function FUSE._finalize(actor::ActorCosting)
     sort!(actor.ddR.costing.cost_direct_capital.system; by=x -> x.cost, rev=true)
     for sys in actor.ddR.costing.cost_direct_capital.system
         sort!(sys.subsystem; by=x -> x.cost, rev=true)

@@ -59,7 +59,7 @@ mkpath(sty.save_folder)
     IFE.ActorIFETransport(dd, act)
     IFE.ActorIFEBlanket(dd, act)
     FUSE.ActorPowerNeeds(dd, act)
-    IFE.ActorCostingIFE(dd, act)
+    IFE.ActorCosting(dd, act)
     return nothing
 end
 

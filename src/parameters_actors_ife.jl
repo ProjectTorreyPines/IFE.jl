@@ -14,8 +14,7 @@
 # subtype.
 #
 # Used by IFE workflow today:
-#   ActorCosting        → init_costing!(dd, act.ActorCosting) baseline
-#   ActorCostingIFE     → IFE plant cost
+#   ActorCosting        → IFE plant cost (IFE.ActorCosting, not FUSE's)
 #   ActorIFEBlanket     → IFE blanket TBR / neutronics
 #   ActorIFETransport   → IFE 0-D gain model
 #   ActorPowerNeeds     → FUSE actor, IFEdd dispatches on IFEdd.dd
@@ -28,8 +27,7 @@ mutable struct IFEParametersActors{T<:Real} <: AbstractIFEParametersActors{T}
     _parent::WeakRef
     _name::Symbol
     # Used by the IFE workflow today
-    ActorCosting::FUSE.FUSEparameters__ActorCosting{T}
-    ActorCostingIFE::FUSEparameters__ActorCostingIFE{T}
+    ActorCosting::FUSEparameters__ActorCosting{T}
     ActorIFEBlanket::FUSEparameters__ActorIFEBlanket{T}
     ActorIFETransport::FUSEparameters__ActorIFETransport{T}
     ActorPowerNeeds::FUSE.FUSEparameters__ActorPowerNeeds{T}
@@ -42,8 +40,7 @@ function IFEParametersActors{T}() where {T<:Real}
     act = IFEParametersActors{T}(
         WeakRef(nothing),
         :act,
-        FUSE.FUSEparameters__ActorCosting{T}(),
-        FUSEparameters__ActorCostingIFE{T}(),
+        FUSEparameters__ActorCosting{T}(),
         FUSEparameters__ActorIFEBlanket{T}(),
         FUSEparameters__ActorIFETransport{T}(),
         FUSE.FUSEparameters__ActorPowerNeeds{T}(),

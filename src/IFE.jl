@@ -7,7 +7,7 @@ IFE (Inertial Fusion Energy) orchestration package built on top of `IFEdd`
 Provides:
 - IFE init parameter groups (`FUSEparameters__IFE__pellet`, `IFE__driver`)
 - IFE parameter containers (`IFEParametersInits`, `IFEParametersActors`)
-- IFE actors (`ActorIFEBlanket`, `ActorIFETransport`, `ActorCostingIFE`)
+- IFE actors (`ActorIFEBlanket`, `ActorIFETransport`, `ActorCosting`)
   defined via FUSE's `@actor_parameters_struct` macro
 - Dispatch override on `FUSE.ActorPowerNeeds` for `dd::IFEdd.dd`
 - `FUSE.case_parameters(::Val{:IFE})` registration
@@ -33,6 +33,7 @@ module IFE
 using IMASdd
 using IMAS
 using FUSE
+import Dates
 using Measurements: Measurement, ±
 using IFEdd
 # IFEdd exports nothing. Dispatch signatures and type references throughout
@@ -54,7 +55,7 @@ include("parameters_inits_ife.jl")
 # IFE actors (each defines a FUSE.ParametersActor subtype).
 include("actor_ife_blanket.jl")
 include("actor_ife_transport.jl")
-include("actor_costing_ife.jl")
+include("actor_costing.jl")
 include("power_needs_ife.jl")
 include("case_ife.jl")
 
@@ -70,7 +71,7 @@ export AbstractIFEParametersInits, AbstractIFEParametersActors
 export IFEParametersInits, IFEParametersActors
 export ActorIFEBlanket, FUSEparameters__ActorIFEBlanket
 export ActorIFETransport, FUSEparameters__ActorIFETransport
-export ActorCostingIFE, FUSEparameters__ActorCostingIFE
+export ActorCosting, FUSEparameters__ActorCosting
 export init_ife!, init_costing!
 export ife_duty_cycle, extract_ife, IFEExtractFunctionsLibrary
 

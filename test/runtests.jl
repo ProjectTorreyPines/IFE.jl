@@ -18,7 +18,7 @@ ife_study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.Paramet
         @test isdefined(IFE, :ActorIFEBlanket)
         @test isdefined(IFE, :FUSEparameters__ActorIFEBlanket)
         @test isdefined(IFE, :ActorIFETransport)
-        @test isdefined(IFE, :ActorCostingIFE)
+        @test isdefined(IFE, :ActorCosting)
 
         # Init parameter groups
         @test isdefined(IFE, :FUSEparameters__IFE__pellet)
@@ -78,9 +78,10 @@ ife_study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.Paramet
         # IFE-specific actors must be present
         @test act.ActorIFEBlanket isa IFE.FUSEparameters__ActorIFEBlanket{Float64}
         @test act.ActorIFETransport isa IFE.FUSEparameters__ActorIFETransport{Float64}
-        @test act.ActorCostingIFE isa IFE.FUSEparameters__ActorCostingIFE{Float64}
+        @test act.ActorCosting isa IFE.FUSEparameters__ActorCosting{Float64}
+        # IFE's own costing group, not FUSE's: one costing parameter group per act
+        @test !(act.ActorCosting isa FUSE.FUSEparameters__ActorCosting)
         # FUSE actors used by IFE workflow
-        @test act.ActorCosting isa FUSE.ParametersActor
         @test act.ActorPowerNeeds isa FUSE.ParametersActor
         # Plant-level magnetic-agnostic actors kept for future use
         @test act.ActorBalanceOfPlant isa FUSE.ParametersActor
@@ -144,7 +145,9 @@ ife_study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.Paramet
         @test !hasproperty(std_ini, :driver)
         @test !hasproperty(std_act, :ActorIFEBlanket)
         @test !hasproperty(std_act, :ActorIFETransport)
-        @test !hasproperty(std_act, :ActorCostingIFE)
+        # The name is shared by design; the type must stay FUSE's.
+        @test std_act.ActorCosting isa FUSE.FUSEparameters__ActorCosting
+        @test !(std_act.ActorCosting isa IFE.FUSEparameters__ActorCosting)
 
         # ActorPowerNeeds(::IMAS.dd, ::FUSE.ParametersActors) must dispatch to FUSE,
         # not the IFE outer constructor.
@@ -217,8 +220,8 @@ ife_study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.Paramet
         hcd_idx = findfirst(s -> s.name == "HCD", bop_systems)
         @test hcd_idx !== nothing
 
-        # 8. ActorCostingIFE runs and applies its own costing baseline.
-        costing = IFE.ActorCostingIFE(dd, act)
+        # 8. ActorCosting runs and applies its own costing baseline.
+        costing = IFE.ActorCosting(dd, act)
         @test dd.costing.cost_lifetime > 0.0
 
         # Cost uncertainty propagates on the promoted workspace and is dropped

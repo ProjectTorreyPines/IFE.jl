@@ -78,28 +78,26 @@ function FUSE.consistent_ini_act!(ini::AbstractIFEParametersInits, act::Abstract
 end
 
 """
-    init_costing!(dd::IFEdd.dd, par::FUSE.FUSEparameters__ActorCosting)
+    init_costing!(dd::IFEdd.dd, par::FUSEparameters__ActorCosting)
 
 Populate `dd.costing` baseline fields (construction_start_year, future.inflation_rate,
 plant_lifetime, availability, HTS learning constants) from `par` defaults.
 
-Optional. `ActorCostingIFE` writes the same baseline onto its own
+Optional. `ActorCosting` writes the same baseline onto its own
 `Measurement{Float64}` workspace, so the cost model does not depend on this
 having been called. Use it to make the baseline visible in a plain container.
 
 `par.*` are `Measurement{Float64}` while `IFEdd.dd{Float64}.costing` fields are
 plain Float64, so the nominal `.val` component is extracted here. The
-uncertainties survive on `ActorCostingIFE.ddR`.
+uncertainties survive on `ActorCosting.ddR`.
 
 Not type piracy — `dd::IFEdd.dd` is an IFEdd-owned type.
 """
-function init_costing!(dd::IFEdd.dd, par::FUSE.FUSEparameters__ActorCosting)
+function init_costing!(dd::IFEdd.dd, par::FUSEparameters__ActorCosting)
     dd.costing.construction_start_year = par.construction_start_year.val
     dd.costing.future.inflation_rate   = par.future_inflation_rate.val
     dd.costing.plant_lifetime          = par.plant_lifetime.val
     dd.costing.availability            = par.availability.val
-    dd.costing.future.learning.hts.production_increase = par.production_increase.val
-    dd.costing.future.learning.hts.learning_rate       = par.learning_rate.val
     return dd
 end
 
@@ -244,8 +242,7 @@ function init_ife!(dd::IFEdd.dd, ini::AbstractIFEParametersInits, act::AbstractI
     FUSE.init_requirements!(dd, ini, act)
 
     # NOTE: the costing baseline (construction_start_year, inflation_rate,
-    # plant_lifetime, availability, learning constants) is applied by
-    # `ActorCostingIFE` itself. Call `IFE.init_costing!(dd, act.ActorCosting)` only
+    # plant_lifetime, availability) is applied by `ActorCosting` itself. Call `IFE.init_costing!(dd, act.ActorCosting)` only
     # if you also want it mirrored into this plain-Float64 container.
 
     return dd
