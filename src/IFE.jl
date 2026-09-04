@@ -25,7 +25,7 @@ Load order matters (mirrors FUSE's actor → parameter container pattern):
 2. `parameters_inits.jl`       — ParametersInits container
 3. IFE actor files             — each defines a `FUSE.ParametersActor` subtype
 4. `parameters_actors.jl`      — ParametersActors container (after actors,
-                                 so `@insert_subtype_members` sees them)
+                                 whose parameter structs its fields reference)
 5. `extract.jl`                — `IMAS.extract` method for `IFEdd.dd`
 """
 module IFE
@@ -59,8 +59,8 @@ include("actor_costing.jl")
 include("power_needs.jl")
 include("case.jl")
 
-# Parameter container for FUSE.ParametersAllActors — must follow IFE actor
-# files so `@insert_subtype_members FUSE.ParametersActor` enumerates them.
+# Parameter container for FUSE.ParametersAllActors — must follow the actor
+# files, whose parameter structs its fields reference.
 include("parameters_actors.jl")
 
 # IFE scalar extract functions.
