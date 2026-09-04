@@ -76,10 +76,35 @@ end
 """
     ActorCosting(dd::IFEdd.dd, act::AbstractParametersActors; kw...)
 
-Estimates fusion power plant costs for an IFE plant using the PROCESS IFE
-costing methodology adapted to the ARIES cost account structure.
+Estimates fusion power plant costs for an IFE (Inertial Fusion Energy) plant using the
+PROCESS IFE costing methodology adapted to the ARIES cost account structure.
 
-Stores data in `dd.costing` with detailed breakdown by system and subsystem.
+**Direct Capital Costs:**
+- IFE reactor systems: all build layers (chamber, wall, blanket, shield, vessel) via volume-based unit costs
+- Driver system: linear cost model as a function of total drive energy, based on PROCESS defaults
+- Facility infrastructure: land, buildings, hot cells, heat transfer systems (shared with ARIES)
+- Balance of plant: power conversion equipment, electrical systems, fuel handling
+
+**Operating Costs:**
+- Tritium handling and fuel cycle operations
+- Maintenance and operations scaled to plant capacity
+- Blanket module replacement based on lifetime parameters
+
+**Decommissioning Costs:**
+- End-of-life plant dismantling and waste management
+
+The driver cost model follows the PROCESS generic/laser driver formulation:
+`driver_cost = n_drivers * (driver_cost_fixed + driver_cost_per_MJ * E_drive_MJ)`
+where `E_drive_MJ` is the total drive energy per shot in MJ and `n_drivers` is the
+number of beams in `dd.driver`.
+
+Default cost coefficients (`driver_cost_fixed = 154.3 M\$`, `driver_cost_per_MJ = 111.4 M\$/MJ`)
+are taken from PROCESS IFE defaults (1990 US\$) and are inflation-adjusted to future dollars.
+
+!!! note
+
+    Results are stored in `dd.costing` with detailed breakdown by system and subsystem.
+    Cost coefficients for PROCESS defaults are from Ref: Kovari et al., Fusion Eng. Des. (2014).
 """
 function ActorCosting(dd::IFEdd.dd, act::AbstractParametersActors; kw...)
     actor = ActorCosting(dd, act.ActorCosting; kw...)

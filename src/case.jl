@@ -81,7 +81,7 @@ end
     init_costing!(dd::IFEdd.dd, par::FUSEparameters__ActorCosting)
 
 Populate `dd.costing` baseline fields (construction_start_year, future.inflation_rate,
-plant_lifetime, availability, HTS learning constants) from `par` defaults.
+plant_lifetime, availability) from `par` defaults.
 
 Optional. `ActorCosting` writes the same baseline onto its own
 `Measurement{Float64}` workspace, so the cost model does not depend on this
@@ -104,10 +104,16 @@ end
 """
     init!(dd::IFEdd.dd, ini, act; layers_spec=nothing)
 
-Initialize `dd` for a simple spherically-symmetric IFE demo case from `ini`
-parameters. Populates `dd.build`, `dd.pellets`, `dd.driver`,
-`dd.core_profiles`, and `dd.core_sources`; then calls FUSE's standard
-`init_balance_of_plant!` and `init_requirements!`.
+Initialize `dd` for a simple spherically-symmetric IFE demo case from `ini` parameters.
+
+Populates:
+- `dd.build`         — concentric spherical layers (chamber → wall → blanket → shield → vessel)
+- `dd.pellets`       — target pellet geometry (shape, layers, species, repetition frequency)
+- `dd.driver`        — driver beams (wavelength, energy, pulse length, power, efficiencies)
+- `dd.core_profiles` — parabolic D-T density and temperature profiles on a spherical target grid
+- `dd.core_sources`  — D-T fusion sources (alpha + neutrons) via `IMAS.fusion_source!`
+
+then calls FUSE's standard `init_balance_of_plant!` and `init_requirements!`.
 
 Pass `layers_spec` as a vector of NamedTuples `(name, type, thickness, material)`
 to override the default radial build.
@@ -183,13 +189,19 @@ function init!(dd::IFEdd.dd, ini::AbstractParametersInits, act::AbstractParamete
     abl_spec.fraction = 1.0
 
     # ---- driver ----
+    # Time axis spans one full repetition period with a square-pulse shape:
+    #   t=0            laser off  (cold initial state)
+    #   t=nextfloat(0) laser on   ─┐ P_peak bracketed at both ends so
+    #   t=tau          laser on   ─┘ ∫P dt = P_peak * tau = E_laser
+    #   t=nextfloat(tau) laser off
+    #   t=T_rep        laser off  (end of rep period)
     tau      = d.pulse_length
     T_rep    = 1.0 / p.rep_rate
     dd.driver.time = [0.0, nextfloat(0.0), tau, nextfloat(tau), T_rep]
 
     resize!(dd.driver.beam, d.n_drivers)
     energy_per_beam = d.energy / d.n_drivers
-    P_peak = energy_per_beam / tau
+    P_peak = energy_per_beam / tau          # instantaneous peak power per beam
     for k in 1:d.n_drivers
         beam = dd.driver.beam[k]
         beam.name = d.n_drivers == 1 ? "IFE driver" : "IFE driver $k"
@@ -211,6 +223,9 @@ function init!(dd::IFEdd.dd, ini::AbstractParametersInits, act::AbstractParamete
     cp1d.grid.volume = @. (4π / 3) * (rad * rpellet)^3
     cp1d.grid.area   = @. 4π * (rad * rpellet)^2
 
+    # Cold electron density: DT fuel mass from the cryogenic solid layer distributed
+    # uniformly in the void, giving a physically motivated starting density that is
+    # self-consistent with the compression model in ActorTransport.
     m_u       = 1.66054e-27   # kg per atomic mass unit
     rho_DT    = 213.0         # kg/m³, cryogenic liquid DT
     R_f_out   = p.fuel_radius
@@ -218,6 +233,8 @@ function init!(dd::IFEdd.dd, ini::AbstractParametersInits, act::AbstractParamete
     ne_core   = m_fuel / (2.5 * m_u * (4π / 3) * rpellet^3)
 
     cp1d.electrons.density_thermal = @. ne_core * (1 - rad^2) + 1e-3 * ne_core
+    # Temperature floor is 0.1 % of peak so the parabolic shape is preserved even
+    # at sub-eV Te_core values (avoids the hardcoded 1 eV floor being > Te_core).
     cp1d.electrons.temperature     = @. p.Te_core * (1 - rad^2) + 1e-3 * p.Te_core
 
     bulk_ion, = resize!(cp1d.ion, 1)
@@ -231,6 +248,8 @@ function init!(dd::IFEdd.dd, ini::AbstractParametersInits, act::AbstractParamete
     IMAS.fusion_source!(dd.core_sources, dd.core_profiles)
 
     # ---- create remaining time slices in chronological order ----
+    # Slices are created here (cold copies) so ActorTransport only ever
+    # updates existing slices and never has to insert between existing times.
     for t in [nextfloat(0.0), tau, nextfloat(tau), T_rep]
         IMAS.new_timeslice!(dd.core_profiles, t)
         IMAS.new_timeslice!(dd.core_sources, t)
@@ -242,8 +261,9 @@ function init!(dd::IFEdd.dd, ini::AbstractParametersInits, act::AbstractParamete
     FUSE.init_requirements!(dd, ini, act)
 
     # NOTE: the costing baseline (construction_start_year, inflation_rate,
-    # plant_lifetime, availability) is applied by `ActorCosting` itself. Call `IFE.init_costing!(dd, act.ActorCosting)` only
-    # if you also want it mirrored into this plain-Float64 container.
+    # plant_lifetime, availability) is applied by `ActorCosting` itself. Call
+    # `IFE.init_costing!(dd, act.ActorCosting)` only if you also want it mirrored
+    # into this plain-Float64 container.
 
     return dd
 end

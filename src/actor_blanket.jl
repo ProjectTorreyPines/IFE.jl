@@ -140,16 +140,21 @@ function FUSE._step(actor::ActorBlanket)
     target_TBR_ife(abs(res.minimizer[1]))
 
     # ---- dd.neutronics ----
+    # Use the wall layer outline (circular cross-section) as the first-wall geometry.
+    # Neutron flux is isotropic (spherically symmetric), so flux direction at each
+    # wall point is purely radial: (flux_r, flux_z) = peak_wall_flux * (r̂, ẑ) / R_wall.
     if d1_idx !== nothing && !IMASdd.ismissing(layers[d1_idx], :outline) &&
             !isempty(layers[d1_idx].outline.r) && !isempty(layers[d1_idx].outline.z)
         rwall = layers[d1_idx].outline.r
         zwall = layers[d1_idx].outline.z
     else
+        # Fallback: build a circle at r_in
         θ = LinRange(0, 2π, 129)
         rwall = r_in .* cos.(θ)
         zwall = r_in .* sin.(θ)
     end
 
+    # Arc-length of each wall segment (for power per segment)
     n = length(rwall)
     wall_s = zeros(n)
     for i in 1:(n - 1)
@@ -157,11 +162,13 @@ function FUSE._step(actor::ActorBlanket)
     end
     wall_s[end] = wall_s[1]
 
+    # Uniform flux magnitude: power = flux * arc_length, total sums to total_power_neutrons
     total_arc = sum(wall_s)
     power_per_segment = total_power_neutrons .* wall_s ./ total_arc
 
+    # Radial flux direction at each wall point (outward from origin)
     R_wall = sqrt.(rwall .^ 2 .+ zwall .^ 2)
-    R_wall[R_wall .== 0] .= eps()
+    R_wall[R_wall .== 0] .= eps()  # avoid divide-by-zero at origin
     flux_mag = peak_wall_flux
     flux_r = flux_mag .* rwall ./ R_wall
     flux_z = flux_mag .* zwall ./ R_wall

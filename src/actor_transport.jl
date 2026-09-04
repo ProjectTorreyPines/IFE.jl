@@ -89,6 +89,7 @@ function FUSE._step(actor::ActorTransport)
     end
 
     # --- cold base profiles from the first (initial) time slice ---
+    # Copy before bisection can overwrite any slice.
     cp1d_init  = dd.core_profiles.profiles_1d[dd.core_profiles.time[1]]
     Te_cold    = copy(cp1d_init.electrons.temperature)
     Ti_cold    = [copy(ion.temperature) for ion in cp1d_init.ion]
@@ -98,38 +99,43 @@ function FUSE._step(actor::ActorTransport)
     A_cold     = copy(cp1d_init.grid.area)
 
     # --- compressed fuel sphere radius from areal density + mass conservation ---
-    R_c = R  # fallback
+    # rho_c * R_c = rhoR  and  m_fuel = rho_c * (4π/3) * R_c^3
+    # → R_c = sqrt(3 * m_fuel / (4π * rhoR_SI))
+    # Computed before bisection so compressed density is used during the search.
+    R_c = R  # fallback: no compression
     pellet_obj = dd.pellets.time_slice[].pellet[1]
     if length(pellet_obj.layer) >= 3 &&
             !IMASdd.ismissing(pellet_obj.layer[1], :thickness) &&
             !IMASdd.ismissing(pellet_obj.layer[2], :thickness) &&
             !IMASdd.ismissing(pellet_obj.layer[3], :thickness)
-        R_hotspot    = pellet_obj.layer[1].thickness
-        t_fuel       = pellet_obj.layer[2].thickness
+        R_hotspot    = pellet_obj.layer[1].thickness   # hot-spot radius (innermost void)
+        t_fuel       = pellet_obj.layer[2].thickness   # DT fuel layer
         R_fuel_inner = R_hotspot
         R_fuel_outer = R_hotspot + t_fuel
-        rho_DT   = 213.0
+        rho_DT   = 213.0  # kg/m³, cryogenic liquid DT
         m_fuel   = rho_DT * (4π / 3) * (R_fuel_outer^3 - R_fuel_inner^3)
-        rhoR_SI  = rhoR_val * 10.0
+        rhoR_SI  = rhoR_val * 10.0  # g/cm² → kg/m²
         R_c = sqrt(3.0 * m_fuel / (4π * rhoR_SI))
     end
     rho_tor = cp1d_init.grid.rho_tor_norm
     V_hot = @. (4π / 3) * (rho_tor * R_c)^3
     A_hot = @. 4π * (rho_tor * R_c)^2
 
-    density_scale = V_cold[end] / V_hot[end]
+    # Density scales with the compression ratio (particle conservation)
+    density_scale = V_cold[end] / V_hot[end]   # = (R_uncompressed / R_c)^3
     ne_hot = ne_cold .* density_scale
     ni_hot = [ni_cold[k] .* density_scale for k in eachindex(ni_cold)]
 
     # --- bisect on the first laser-on slice to find the hot temperature scale ---
     i_on = findfirst(i -> sum(b.power_launched[i] for b in dd.driver.beam) > 0,
                      eachindex(driver_times))
-    isnothing(i_on) && return actor
+    isnothing(i_on) && return actor   # no laser power at any time point
 
     t_on = driver_times[i_on]
     dd.global_time = t_on
     cp1d_work = dd.core_profiles.profiles_1d[t_on]
 
+    # Pre-set compressed geometry and density so the bisection sees the hot-state density.
     cp1d_work.electrons.density_thermal = ne_hot
     cp1d_work.grid.volume = V_hot
     cp1d_work.grid.area   = A_hot
@@ -150,6 +156,7 @@ function FUSE._step(actor::ActorTransport)
         return IMAS.fusion_power(dd)
     end
 
+    # bracket: expand upper bound until fusion power exceeds target or overflows
     α_lo, α_hi = 0.0, 1.0
     P_hi = P_fus_at_scale(α_hi)
     P_hi_prev = P_hi
@@ -157,12 +164,13 @@ function FUSE._step(actor::ActorTransport)
         P_hi >= P_fus_target && break
         α_hi *= 2.0
         P_hi = P_fus_at_scale(α_hi)
+        # stop if power is NaN or started decreasing (past <σv> peak)
         (isnan(P_hi) || P_hi < P_hi_prev) && (α_hi /= 2.0; P_hi = P_hi_prev; break)
         P_hi_prev = P_hi
     end
     if P_hi < P_fus_target
         @warn "ActorTransport: target fusion power $(round(P_fus_target/1e6; digits=1)) MW unreachable via temperature scaling alone (max: $(round(P_hi/1e6; digits=3)) MW). Profiles set to maximum achievable."
-        α_hi /= 2.0
+        α_hi /= 2.0  # last good bracket
     else
         for _ in 1:60
             α_mid = (α_lo + α_hi) / 2
@@ -203,6 +211,7 @@ function FUSE._step(actor::ActorTransport)
         IMAS.fusion_source!(dd.core_sources, dd.core_profiles)
     end
 
+    # Leave global_time at the last laser-on slice (hot state)
     dd.global_time = t_last_on
 
     if par.verbose
