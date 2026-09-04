@@ -28,7 +28,6 @@ study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.ParametersA
         @test isdefined(IFE, :ParametersInits)
         @test isdefined(IFE, :ParametersActors)
         @test isdefined(IFE, :init!)
-        @test isdefined(IFE, :init_costing!)
         @test isdefined(IFE, :duty_cycle)
         # extract is a method on IMAS.extract, not an IFE-owned name
         @test hasmethod(IMAS.extract, (IFEdd.dd,))
@@ -239,14 +238,7 @@ study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.ParametersA
         # so the struct boundary is what keeps `_step` type-stable.
         @test all(isconcretetype(fieldtype(typeof(costing), f)) for f in fieldnames(typeof(costing)))
 
-        # 9. `init_costing!` stays available for mirroring the baseline into the
-        # plain container, and drops the uncertainty when it does.
-        dd.costing.plant_lifetime = 0.0
-        IFE.init_costing!(dd, act.ActorCosting)
-        @test dd.costing.plant_lifetime == Measurements.value(act.ActorCosting.plant_lifetime)
-        @test dd.costing.plant_lifetime isa Float64
-
-        # 10. Extract reproduces joey's metric set on a populated container.
+        # 9. Extract reproduces joey's metric set on a populated container.
         # Everything outside `:bop` must evaluate; the `:bop` group stays empty
         # until a thermal cycle runs and fills `balance_of_plant.power_plant`.
         xtract = IMAS.extract(dd)

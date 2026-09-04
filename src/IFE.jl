@@ -11,7 +11,7 @@ Provides:
   defined via FUSE's `@actor_parameters_struct` macro
 - Dispatch override on `FUSE.ActorPowerNeeds` for `dd::IFEdd.dd`
 - `FUSE.case_parameters(::Val{:IFE})` registration
-- `init!`, `init_costing!`, `IMAS.extract`
+- `init!`, `IMAS.extract`
 
 All IFE-specific dispatches dispatch on at least one type owned by `IFE` or
 `IFEdd` (e.g. `IFEdd.dd`, `IFEdd.driver`, `FUSEparameters__ActorIFE*`), so

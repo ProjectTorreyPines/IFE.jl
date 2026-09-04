@@ -61,10 +61,7 @@ mutable struct ActorCosting{D,P} <: FUSE.SingleAbstractActor{D,P}
         empty!(dd.costing)
         ddR = IMAS.get_timeslice(Measurement{Float64}, dd)
         FUSE.copy_workflow!(ddR, dd)
-        # Costing baseline, uncertainties intact. `init_costing!` writes the same
-        # values into the plain-Float64 container for inspection; this is the copy
-        # the cost model actually reads, so the actor does not depend on the caller
-        # having run it.
+        # Costing baseline, uncertainties intact: this is the copy the cost model reads.
         ddR.costing.construction_start_year = par.construction_start_year
         ddR.costing.future.inflation_rate = par.future_inflation_rate
         ddR.costing.plant_lifetime = par.plant_lifetime

@@ -1,7 +1,7 @@
 # ParametersInits — slim IFE-flavored version of `FUSE.ParametersInits`.
 #
 # Only the parameter groups actually read by the IFE workflow (case_parameters,
-# init!, init_costing!, IFE actors) plus the two FUSE init helpers we reuse
+# init!, IFE actors) plus the two FUSE init helpers we reuse
 # (`init_balance_of_plant!`, `init_requirements!`) are kept. Magnetic-specific
 # groups (equilibrium, tf, pf_active, oh, build, HCD launchers, …) are dropped
 # because the IFE workflow never touches them and they only bloat

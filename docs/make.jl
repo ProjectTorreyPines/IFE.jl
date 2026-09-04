@@ -11,10 +11,10 @@ makedocs(;
     # Declared rather than sniffed from `git remote`, so the docs build works
     # from a clone that has no remote configured.
     remotes=Dict(
-        dirname(@__DIR__) => (Documenter.Remotes.GitHub("ProjectTorreyPines", "IFE.jl"), "main")),
+        dirname(@__DIR__) => (Documenter.Remotes.GitHub("ProjectTorreyPines", "IFE.jl"), "master")),
     format=Documenter.HTML(;
         canonical="https://projecttorreypines.github.io/IFE.jl",
-        edit_link="main",
+        edit_link="master",
         size_threshold=nothing,
         size_threshold_warn=nothing),
     pages=[
@@ -29,6 +29,6 @@ deploydocs(;
     repo="github.com/ProjectTorreyPines/IFE.jl.git",
     target="build",
     branch="gh-pages",
-    devbranch="main",
+    devbranch="master",
     versions=["stable" => "v^", "v#.#"]
 )
