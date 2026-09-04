@@ -6,7 +6,7 @@
 # Phase 3 signature relaxations on FUSE side.
 
 # Cost entries are pinned to `Measurement{Float64}` rather than the container's `T`:
-# `act` is an `IFEParametersActors{Float64}`, so `Entry{T}` would resolve to
+# `act` is an `ParametersActors{Float64}`, so `Entry{T}` would resolve to
 # `Entry{Float64}` and could not hold a `±` value. Pinning keeps the field types
 # concrete and inference-stable regardless of `P`. Defaults follow joey.
 FUSE.@actor_parameters_struct ActorCosting{T} begin
@@ -74,14 +74,14 @@ mutable struct ActorCosting{D,P} <: FUSE.SingleAbstractActor{D,P}
 end
 
 """
-    ActorCosting(dd::IFEdd.dd, act::AbstractIFEParametersActors; kw...)
+    ActorCosting(dd::IFEdd.dd, act::AbstractParametersActors; kw...)
 
 Estimates fusion power plant costs for an IFE plant using the PROCESS IFE
 costing methodology adapted to the ARIES cost account structure.
 
 Stores data in `dd.costing` with detailed breakdown by system and subsystem.
 """
-function ActorCosting(dd::IFEdd.dd, act::AbstractIFEParametersActors; kw...)
+function ActorCosting(dd::IFEdd.dd, act::AbstractParametersActors; kw...)
     actor = ActorCosting(dd, act.ActorCosting; kw...)
     FUSE.step(actor)
     FUSE.finalize(actor)

@@ -1,7 +1,7 @@
-# IFEParametersInits — slim IFE-flavored version of `FUSE.ParametersInits`.
+# ParametersInits — slim IFE-flavored version of `FUSE.ParametersInits`.
 #
 # Only the parameter groups actually read by the IFE workflow (case_parameters,
-# init_ife!, init_costing!, IFE actors) plus the two FUSE init helpers we reuse
+# init!, init_costing!, IFE actors) plus the two FUSE init helpers we reuse
 # (`init_balance_of_plant!`, `init_requirements!`) are kept. Magnetic-specific
 # groups (equilibrium, tf, pf_active, oh, build, HCD launchers, …) are dropped
 # because the IFE workflow never touches them and they only bloat
@@ -21,7 +21,7 @@
 # To enable an additional FUSE field, add it here AND in the constructor below.
 # All groups remain `FUSE.ParametersAllInits{T}` subtype-compatible.
 
-mutable struct IFEParametersInits{T<:Real} <: AbstractIFEParametersInits{T}
+mutable struct ParametersInits{T<:Real} <: AbstractParametersInits{T}
     _parent::WeakRef
     _name::Symbol
     # FUSE.ParametersInits groups that IFE actually uses
@@ -37,12 +37,12 @@ mutable struct IFEParametersInits{T<:Real} <: AbstractIFEParametersInits{T}
     # IFE-specific groups. Field names are slim (`ini.pellet`, `ini.driver`)
     # since the container is already IFE-flavored. The underlying types keep
     # the `__IFE__` sub-namespace marker for grep/debug clarity.
-    pellet::FUSEparameters__IFE__pellet{T}
-    driver::FUSEparameters__IFE__driver{T}
+    pellet::FUSEparameters__pellet{T}
+    driver::FUSEparameters__driver{T}
 end
 
-function IFEParametersInits{T}() where {T<:Real}
-    ini = IFEParametersInits{T}(
+function ParametersInits{T}() where {T<:Real}
+    ini = ParametersInits{T}(
         WeakRef(nothing),
         :ini,
         FUSE.FUSEparameters__general{T}(),
@@ -50,11 +50,11 @@ function IFEParametersInits{T}() where {T<:Real}
         FUSE.FUSEparameters__core_profiles{T}(),
         FUSE.FUSEparameters__balance_of_plant{T}(),
         FUSE.FUSEparameters__requirements{T}(),
-        FUSEparameters__IFE__pellet{T}(),
-        FUSEparameters__IFE__driver{T}(),
+        FUSEparameters__pellet{T}(),
+        FUSEparameters__driver{T}(),
     )
     FUSE.setup_parameters!(ini)
     return ini
 end
 
-IFEParametersInits() = IFEParametersInits{Float64}()
+ParametersInits() = ParametersInits{Float64}()

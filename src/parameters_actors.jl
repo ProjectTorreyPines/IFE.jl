@@ -1,4 +1,4 @@
-# IFEParametersActors — slim IFE-flavored version of `FUSE.ParametersActors`.
+# ParametersActors — slim IFE-flavored version of `FUSE.ParametersActors`.
 #
 # FUSE.ParametersActors uses `FUSE.@insert_subtype_members FUSE.ParametersActor`
 # which enumerates *all* `FUSE.ParametersActor` subtypes registered at struct
@@ -15,34 +15,34 @@
 #
 # Used by IFE workflow today:
 #   ActorCosting        → IFE plant cost (IFE.ActorCosting, not FUSE's)
-#   ActorIFEBlanket     → IFE blanket TBR / neutronics
-#   ActorIFETransport   → IFE 0-D gain model
+#   ActorBlanket     → IFE blanket TBR / neutronics
+#   ActorTransport   → IFE 0-D gain model
 #   ActorPowerNeeds     → FUSE actor, IFEdd dispatches on IFEdd.dd
 #
 # Plausibly useful soon (magnetic-agnostic, plant-level):
 #   ActorBalanceOfPlant → BOP electric/thermal flow
 #   ActorThermalPlant   → thermal cycle modelling
 
-mutable struct IFEParametersActors{T<:Real} <: AbstractIFEParametersActors{T}
+mutable struct ParametersActors{T<:Real} <: AbstractParametersActors{T}
     _parent::WeakRef
     _name::Symbol
     # Used by the IFE workflow today
     ActorCosting::FUSEparameters__ActorCosting{T}
-    ActorIFEBlanket::FUSEparameters__ActorIFEBlanket{T}
-    ActorIFETransport::FUSEparameters__ActorIFETransport{T}
+    ActorBlanket::FUSEparameters__ActorBlanket{T}
+    ActorTransport::FUSEparameters__ActorTransport{T}
     ActorPowerNeeds::FUSE.FUSEparameters__ActorPowerNeeds{T}
     # Plant-level, magnetic-agnostic — kept for future IFE use
     ActorBalanceOfPlant::FUSE.FUSEparameters__ActorBalanceOfPlant{T}
     ActorThermalPlant::FUSE.FUSEparameters__ActorThermalPlant{T}
 end
 
-function IFEParametersActors{T}() where {T<:Real}
-    act = IFEParametersActors{T}(
+function ParametersActors{T}() where {T<:Real}
+    act = ParametersActors{T}(
         WeakRef(nothing),
         :act,
         FUSEparameters__ActorCosting{T}(),
-        FUSEparameters__ActorIFEBlanket{T}(),
-        FUSEparameters__ActorIFETransport{T}(),
+        FUSEparameters__ActorBlanket{T}(),
+        FUSEparameters__ActorTransport{T}(),
         FUSE.FUSEparameters__ActorPowerNeeds{T}(),
         FUSE.FUSEparameters__ActorBalanceOfPlant{T}(),
         FUSE.FUSEparameters__ActorThermalPlant{T}(),
@@ -51,4 +51,4 @@ function IFEParametersActors{T}() where {T<:Real}
     return act
 end
 
-IFEParametersActors() = IFEParametersActors{Float64}()
+ParametersActors() = ParametersActors{Float64}()

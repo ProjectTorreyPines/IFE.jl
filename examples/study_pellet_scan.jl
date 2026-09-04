@@ -8,7 +8,7 @@
 #   julia --project=/Users/yoo/.julia/dev/IFE examples/study_pellet_scan.jl
 #
 # What this demonstrates
-#   1. `FUSE.case_parameters(:IFE)` returns an IFEParametersInits / Actors pair
+#   1. `FUSE.case_parameters(:IFE)` returns an ParametersInits / Actors pair
 #   2. The same `↔` distribution syntax FUSE uses for ITER scans works on
 #      IFE-specific parameters (pellet, driver) — they're FUSE
 #      ParametersInit subtypes and `rand(ini)` handles them generically
@@ -95,10 +95,10 @@ ini.pellet.fuel_radius        = 100e-6 ↔ mixed_two_Normals   # m   (target rad
 function _single_case_demo(ini, act)
     ini_test = rand(ini)
     dd = IFEdd.dd()
-    IFE.init_ife!(dd, ini_test, act)
+    IFE.init!(dd, ini_test, act)
     IFE.init_costing!(dd, act.ActorCosting)
-    IFE.ActorIFETransport(dd, act)
-    IFE.ActorIFEBlanket(dd, act)
+    IFE.ActorTransport(dd, act)
+    IFE.ActorBlanket(dd, act)
     FUSE.ActorPowerNeeds(dd, act)
     IFE.ActorCosting(dd, act)
     @info "Single test case" fuel_radius=ini_test.pellet.fuel_radius driver_energy=ini_test.driver.energy cost_lifetime_GUSD=round(dd.costing.cost_lifetime/1e3; digits=2) CoE=round(dd.costing.levelized_CoE; digits=4)
@@ -150,10 +150,10 @@ mkpath(sty.save_folder)
     ini::FUSE.ParametersAllInits,
     act::FUSE.ParametersAllActors,
 )
-    IFE.init_ife!(dd, ini, act)
+    IFE.init!(dd, ini, act)
     IFE.init_costing!(dd, act.ActorCosting)
-    IFE.ActorIFETransport(dd, act)
-    IFE.ActorIFEBlanket(dd, act)
+    IFE.ActorTransport(dd, act)
+    IFE.ActorBlanket(dd, act)
     FUSE.ActorPowerNeeds(dd, act)
     IFE.ActorCosting(dd, act)
     return nothing
@@ -177,7 +177,7 @@ FUSE.run(study)
 # filter to the columns that actually have data so the summary is readable.
 df = study.dataframe
 
-function ife_relevant_columns(df)
+function relevant_columns(df)
     keep = String[]
     for c in names(df)
         vals = df[!, c]
@@ -188,7 +188,7 @@ function ife_relevant_columns(df)
     return keep
 end
 
-useful = ife_relevant_columns(df)
+useful = relevant_columns(df)
 @info "study.dataframe: $(nrow(df)) cases × $(ncol(df)) cols total; $(length(useful)) cols with non-NaN data"
 
 println()

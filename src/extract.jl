@@ -14,12 +14,12 @@
 using OrderedCollections: OrderedDict
 
 """
-    ife_duty_cycle(ife::IFEdd.dd) -> Float64
+    duty_cycle(ife::IFEdd.dd) -> Float64
 
 Return the IFE duty cycle `τ_pulse / T_rep` from `ife.driver`.
 Returns `NaN` if the driver is not populated.
 """
-function ife_duty_cycle(ife::IFEdd.dd)
+function duty_cycle(ife::IFEdd.dd)
     isempty(ife.driver.beam) && return NaN
     isempty(ife.driver.time) && return NaN
     tau = ife.driver.beam[1].pulse_length    # s
@@ -27,15 +27,15 @@ function ife_duty_cycle(ife::IFEdd.dd)
     return tau / T_rep
 end
 
-const IFEExtractFunctionsLibrary = OrderedDict{Symbol,IMAS.ExtractFunction}()
+const ExtractFunctionsLibrary = OrderedDict{Symbol,IMAS.ExtractFunction}()
 
 """
-    update_IFEExtractFunctionsLibrary!()
+    update_ExtractFunctionsLibrary!()
 
-Rebuild [`IFEExtractFunctionsLibrary`](@ref) in place.
+Rebuild [`ExtractFunctionsLibrary`](@ref) in place.
 """
-function update_IFEExtractFunctionsLibrary!()
-    IEFL = IFEExtractFunctionsLibrary
+function update_ExtractFunctionsLibrary!()
+    IEFL = ExtractFunctionsLibrary
     empty!(IEFL)
 
     function EF(group::Symbol, name::Symbol, units::String, func::Function)
@@ -50,7 +50,7 @@ function update_IFEExtractFunctionsLibrary!()
     EF(:driver, :E_driver,       "MJ",  dd -> sum(b.energy for b in dd.driver.beam) / 1e6)
     EF(:driver, :rep_rate,       "Hz",  dd -> 1.0 / dd.driver.time[end])
     EF(:driver, :tau_pulse,      "ns",  dd -> dd.driver.beam[1].pulse_length * 1e9)
-    EF(:driver, :duty_cycle,     "-",   dd -> ife_duty_cycle(dd))
+    EF(:driver, :duty_cycle,     "-",   dd -> duty_cycle(dd))
     EF(:driver, :n_beams,        "-",   dd -> Float64(length(dd.driver.beam)))
     EF(:driver, :eta_conversion, "-",   dd -> dd.driver.beam[1].efficiency.conversion)
     EF(:driver, :eta_coupling,   "-",   dd -> dd.driver.beam[1].efficiency.coupling)
@@ -72,15 +72,15 @@ function update_IFEExtractFunctionsLibrary!()
     EF(:plasma_peak, :P_fus_peak,"GW",  dd -> IMAS.fusion_power(dd) / 1e9)
 
     # --- duty-cycle-averaged power quantities ---
-    EF(:power_avg, :P_fus_avg,    "MW",  dd -> IMAS.fusion_power(dd) / 1e6 * ife_duty_cycle(dd))
-    EF(:power_avg, :P_neutron_avg,"MW",  dd -> IMAS.fusion_neutron_power(dd) / 1e6 * ife_duty_cycle(dd))
-    EF(:power_avg, :P_alpha_avg,  "MW",  dd -> IMAS.fusion_plasma_power(dd) / 1e6 * ife_duty_cycle(dd))
+    EF(:power_avg, :P_fus_avg,    "MW",  dd -> IMAS.fusion_power(dd) / 1e6 * duty_cycle(dd))
+    EF(:power_avg, :P_neutron_avg,"MW",  dd -> IMAS.fusion_neutron_power(dd) / 1e6 * duty_cycle(dd))
+    EF(:power_avg, :P_alpha_avg,  "MW",  dd -> IMAS.fusion_plasma_power(dd) / 1e6 * duty_cycle(dd))
     EF(:power_avg, :Q_target,     "-",   dd -> IEFL[:P_fus_avg](dd) / IEFL[:P_driver_avg](dd))
 
     # --- neutronics ---
     EF(:neutronics, :TBR,         "-",   dd -> IMAS.@ddtime(dd.blanket.tritium_breeding_ratio))
     EF(:neutronics, :peak_wall_flux_avg, "MW/m²", dd -> begin
-        dc = ife_duty_cycle(dd)
+        dc = duty_cycle(dd)
         maximum(sqrt.(dd.neutronics.time_slice[].wall_loading.flux_r .^ 2 .+
                       dd.neutronics.time_slice[].wall_loading.flux_z .^ 2)) / 1e6 * dc
     end)
@@ -99,12 +99,12 @@ function update_IFEExtractFunctionsLibrary!()
 
     return IEFL
 end
-update_IFEExtractFunctionsLibrary!()
+update_ExtractFunctionsLibrary!()
 
 """
-    extract_ife(dd::IFEdd.dd)
+    IMAS.extract(dd::IFEdd.dd)
 
-Extract key scalar quantities for an IFE case from `dd`.
+Extend `IMAS.extract` for an IFE container: extract key scalar quantities for an IFE case from `dd`.
 
 Power quantities (fusion, neutron, alpha, wall flux) are duty-cycle-averaged:
 `<P> = P_peak × (τ_pulse / T_rep)`.
@@ -122,6 +122,6 @@ methods all apply.
 - `:bop`         — balance-of-plant electric output and efficiency
 - `:costing`     — capital cost and levelized cost of electricity
 """
-function extract_ife(dd::IFEdd.dd)
-    return IMAS.extract(dd, IFEExtractFunctionsLibrary)
+function IMAS.extract(dd::IFEdd.dd)
+    return IMAS.extract(dd, ExtractFunctionsLibrary)
 end

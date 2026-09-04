@@ -54,10 +54,10 @@ mkpath(sty.save_folder)
     ini::FUSE.ParametersAllInits,
     act::FUSE.ParametersAllActors,
 )
-    IFE.init_ife!(dd, ini, act)
+    IFE.init!(dd, ini, act)
     IFE.init_costing!(dd, act.ActorCosting)
-    IFE.ActorIFETransport(dd, act)
-    IFE.ActorIFEBlanket(dd, act)
+    IFE.ActorTransport(dd, act)
+    IFE.ActorBlanket(dd, act)
     FUSE.ActorPowerNeeds(dd, act)
     IFE.ActorCosting(dd, act)
     return nothing

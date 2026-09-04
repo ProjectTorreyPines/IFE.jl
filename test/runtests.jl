@@ -9,46 +9,47 @@ import Measurements
 # Workflow for the StudyDatabaseGenerator testset. Top level so it is an ordinary
 # function. The study only needs a populated container; the full actor sequence
 # is covered by "End-to-end IFE workflow".
-ife_study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.ParametersAllActors) = IFE.init_ife!(dd, ini, act)
+study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.ParametersAllActors) = IFE.init!(dd, ini, act)
 
 @testset "IFE" begin
 
     @testset "Module loading — IFE-side symbols" begin
         # Actors
-        @test isdefined(IFE, :ActorIFEBlanket)
-        @test isdefined(IFE, :FUSEparameters__ActorIFEBlanket)
-        @test isdefined(IFE, :ActorIFETransport)
+        @test isdefined(IFE, :ActorBlanket)
+        @test isdefined(IFE, :FUSEparameters__ActorBlanket)
+        @test isdefined(IFE, :ActorTransport)
         @test isdefined(IFE, :ActorCosting)
 
         # Init parameter groups
-        @test isdefined(IFE, :FUSEparameters__IFE__pellet)
-        @test isdefined(IFE, :FUSEparameters__IFE__driver)
+        @test isdefined(IFE, :FUSEparameters__pellet)
+        @test isdefined(IFE, :FUSEparameters__driver)
 
         # Containers + workflow
-        @test isdefined(IFE, :IFEParametersInits)
-        @test isdefined(IFE, :IFEParametersActors)
-        @test isdefined(IFE, :init_ife!)
+        @test isdefined(IFE, :ParametersInits)
+        @test isdefined(IFE, :ParametersActors)
+        @test isdefined(IFE, :init!)
         @test isdefined(IFE, :init_costing!)
-        @test isdefined(IFE, :ife_duty_cycle)
-        @test isdefined(IFE, :extract_ife)
+        @test isdefined(IFE, :duty_cycle)
+        # extract is a method on IMAS.extract, not an IFE-owned name
+        @test hasmethod(IMAS.extract, (IFEdd.dd,))
     end
 
-    @testset "ife_duty_cycle — IFE-only computation" begin
+    @testset "duty_cycle — IFE-only computation" begin
         d = IFEdd.dd()
         # Empty driver returns NaN
-        @test isnan(IFE.ife_duty_cycle(d))
+        @test isnan(IFE.duty_cycle(d))
     end
 
     @testset "Actor parameter structs instantiate" begin
-        par_blanket = IFE.FUSEparameters__ActorIFEBlanket{Float64}()
+        par_blanket = IFE.FUSEparameters__ActorBlanket{Float64}()
         @test par_blanket isa FUSE.ParametersActor{Float64}
     end
 
-    @testset "IFEParametersInits — slim IFE groups" begin
-        ini = IFE.IFEParametersInits()
+    @testset "ParametersInits — slim IFE groups" begin
+        ini = IFE.ParametersInits()
         # Concrete + abstract type hierarchy
-        @test ini isa IFE.IFEParametersInits{Float64}
-        @test ini isa IFE.AbstractIFEParametersInits{Float64}
+        @test ini isa IFE.ParametersInits{Float64}
+        @test ini isa IFE.AbstractParametersInits{Float64}
         @test ini isa FUSE.ParametersAllInits{Float64}
         # Groups that IFE workflow reads
         @test ini.general isa FUSE.FUSEparameters__general{Float64}
@@ -57,8 +58,8 @@ ife_study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.Paramet
         @test ini.requirements isa FUSE.FUSEparameters__requirements{Float64}
         @test ini.bop isa FUSE.FUSEparameters__balance_of_plant{Float64}
         # IFE-specific groups
-        @test ini.pellet isa IFE.FUSEparameters__IFE__pellet{Float64}
-        @test ini.driver isa IFE.FUSEparameters__IFE__driver{Float64}
+        @test ini.pellet isa IFE.FUSEparameters__pellet{Float64}
+        @test ini.driver isa IFE.FUSEparameters__driver{Float64}
         # Default values from port
         @test ini.pellet.fuel_radius == 100e-6
         @test ini.driver.energy == 1.8e6
@@ -69,15 +70,15 @@ ife_study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.Paramet
         end
     end
 
-    @testset "IFEParametersActors — slim IFE actor list" begin
-        act = IFE.IFEParametersActors()
+    @testset "ParametersActors — slim IFE actor list" begin
+        act = IFE.ParametersActors()
         # Concrete + abstract type hierarchy
-        @test act isa IFE.IFEParametersActors{Float64}
-        @test act isa IFE.AbstractIFEParametersActors{Float64}
+        @test act isa IFE.ParametersActors{Float64}
+        @test act isa IFE.AbstractParametersActors{Float64}
         @test act isa FUSE.ParametersAllActors{Float64}
         # IFE-specific actors must be present
-        @test act.ActorIFEBlanket isa IFE.FUSEparameters__ActorIFEBlanket{Float64}
-        @test act.ActorIFETransport isa IFE.FUSEparameters__ActorIFETransport{Float64}
+        @test act.ActorBlanket isa IFE.FUSEparameters__ActorBlanket{Float64}
+        @test act.ActorTransport isa IFE.FUSEparameters__ActorTransport{Float64}
         @test act.ActorCosting isa IFE.FUSEparameters__ActorCosting{Float64}
         # IFE's own costing group, not FUSE's: one costing parameter group per act
         @test !(act.ActorCosting isa FUSE.FUSEparameters__ActorCosting)
@@ -96,7 +97,7 @@ ife_study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.Paramet
 
     @testset "ActorPowerNeeds — IFE outer constructor dispatch" begin
         d = IFEdd.dd()
-        act = IFE.IFEParametersActors()
+        act = IFE.ParametersActors()
         # IFE registers `ActorPowerNeeds(dd::IFEdd.dd, act::ParametersAllActors)`
         # which should be more specific than FUSE's `(dd::IMAS.DD, act::ParametersAllActors)`.
         m = which(FUSE.ActorPowerNeeds, (typeof(d), typeof(act)))
@@ -118,16 +119,16 @@ ife_study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.Paramet
         @test which(IMAS.fusion_power, (typeof(std_dd),)) isa Method
     end
 
-    @testset "IFEExtractFunctionsLibrary — shape and grouping" begin
+    @testset "ExtractFunctionsLibrary — shape and grouping" begin
         # Same shape as joey's: 28 entries across seven groups, returned as
         # `ExtractFunction`s so IMAS's show / print_tiled / HDF5 save all apply.
-        @test length(IFE.IFEExtractFunctionsLibrary) == 28
-        groups = unique(xf.group for xf in values(IFE.IFEExtractFunctionsLibrary))
+        @test length(IFE.ExtractFunctionsLibrary) == 28
+        groups = unique(xf.group for xf in values(IFE.ExtractFunctionsLibrary))
         @test Set(groups) == Set([:driver, :target, :plasma_peak, :power_avg,
                                   :neutronics, :bop, :costing])
 
         # An unpopulated container must not throw — failures are recorded per entry.
-        out = IFE.extract_ife(IFEdd.dd())
+        out = IMAS.extract(IFEdd.dd())
         @test out isa AbstractDict{Symbol,IMAS.ExtractFunction}
         @test length(out) == 28
     end
@@ -143,9 +144,10 @@ ife_study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.Paramet
         # Standard ini/act must not carry IFE fields
         @test !hasproperty(std_ini, :pellet)
         @test !hasproperty(std_ini, :driver)
-        @test !hasproperty(std_act, :ActorIFEBlanket)
-        @test !hasproperty(std_act, :ActorIFETransport)
-        # The name is shared by design; the type must stay FUSE's.
+        @test !hasproperty(std_act, :ActorTransport)
+        # These names are shared with FUSE by design; the types must stay FUSE's.
+        @test std_act.ActorBlanket isa FUSE.FUSEparameters__ActorBlanket
+        @test !(std_act.ActorBlanket isa IFE.FUSEparameters__ActorBlanket)
         @test std_act.ActorCosting isa FUSE.FUSEparameters__ActorCosting
         @test !(std_act.ActorCosting isa IFE.FUSEparameters__ActorCosting)
 
@@ -169,8 +171,8 @@ ife_study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.Paramet
         @test parentmodule(m_fp) === IMAS
 
         # case_parameters: IFE registers exactly one Val{:IFE} method.
-        m_ife = which(FUSE.case_parameters, (Val{:IFE},))
-        @test parentmodule(m_ife) === IFE
+        m_case = which(FUSE.case_parameters, (Val{:IFE},))
+        @test parentmodule(m_case) === IFE
         n_ife_case_methods = count(m -> parentmodule(m) === IFE,
                                    methods(FUSE.case_parameters))
         @test n_ife_case_methods == 1
@@ -179,13 +181,13 @@ ife_study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.Paramet
     @testset "End-to-end IFE workflow" begin
         # 1. case_parameters returns IFE-flavored ini/act
         ini, act = FUSE.case_parameters(:IFE)
-        @test ini isa IFE.IFEParametersInits
-        @test act isa IFE.IFEParametersActors
+        @test ini isa IFE.ParametersInits
+        @test act isa IFE.ParametersActors
         @test ini.driver.energy == 1.8e6
 
-        # 2. init_ife! populates IFEdd.dd
+        # 2. init! populates IFEdd.dd
         dd = IFEdd.dd()
-        IFE.init_ife!(dd, ini, act)
+        IFE.init!(dd, ini, act)
         @test length(dd.build.layer) == 5
         @test length(dd.driver.beam) == 1
         @test !isempty(dd.pellets.launcher)
@@ -198,17 +200,17 @@ ife_study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.Paramet
         @test P_wallplug > 0.0
         @test isfinite(P_wallplug)
 
-        # 4. ife_duty_cycle returns a valid fraction
-        @test 0.0 < IFE.ife_duty_cycle(dd) < 1.0
+        # 4. duty_cycle returns a valid fraction
+        @test 0.0 < IFE.duty_cycle(dd) < 1.0
 
-        # 5. ActorIFETransport runs (0-D gain model).
-        IFE.ActorIFETransport(dd, act)
+        # 5. ActorTransport runs (0-D gain model).
+        IFE.ActorTransport(dd, act)
         @test length(dd.core_profiles.time) >= length(dd.driver.time)
         cp1d_peak = dd.core_profiles.profiles_1d[dd.global_time]
         @test maximum(cp1d_peak.electrons.temperature) > ini.pellet.Te_core
 
-        # 6. ActorIFEBlanket runs (TBR optimization)
-        IFE.ActorIFEBlanket(dd, act)
+        # 6. ActorBlanket runs (TBR optimization)
+        IFE.ActorBlanket(dd, act)
         @test !isempty(dd.blanket.module)
         @test !IMASdd.ismissing(dd.blanket.module[1].time_slice[1], :tritium_breeding_ratio)
         @test !isempty(dd.neutronics.first_wall.r)
@@ -247,7 +249,7 @@ ife_study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.Paramet
         # 10. Extract reproduces joey's metric set on a populated container.
         # Everything outside `:bop` must evaluate; the `:bop` group stays empty
         # until a thermal cycle runs and fills `balance_of_plant.power_plant`.
-        xtract = IFE.extract_ife(dd)
+        xtract = IMAS.extract(dd)
         failed = [k for (k, xf) in xtract if xf.error !== nothing]
         @test all(xtract[k].group === :bop for k in failed)
         @test count(xf -> xf.error === nothing, values(xtract)) == 24
@@ -276,7 +278,7 @@ ife_study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.Paramet
 
         study = FUSE.StudyDatabaseGenerator(sty, ini, act; dd_type=IFEdd.dd)
         @test study.dd_type === IFEdd.dd
-        study.workflow = ife_study_workflow
+        study.workflow = study_workflow
 
         FUSE.run(study)
         @test study.dataframe[1, :status] == "success"

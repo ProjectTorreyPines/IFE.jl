@@ -1,4 +1,4 @@
-# ActorIFEBlanket — IFE blanket TBR and neutron wall loading.
+# ActorBlanket — IFE blanket TBR and neutron wall loading.
 #
 # Ported from joey_fork/FUSE.jl/src/actors/nuclear/ife_blanket_actor.jl.
 # Single-container signature: `dd::IFEdd.dd` (Mode B subset embeds all required
@@ -6,7 +6,7 @@
 # build-layer enums) are accessed through FUSE/IMAS namespaces; IFEdd does
 # not pull them in directly.
 
-FUSE.@actor_parameters_struct ActorIFEBlanket{T} begin
+FUSE.@actor_parameters_struct ActorBlanket{T} begin
     blanket_multiplier::FUSE.Entry{T} = FUSE.Entry{T}("-", "Neutron thermal power multiplier in blanket"; default=1.2)
     thermal_power_extraction_efficiency::FUSE.Entry{T} = FUSE.Entry{T}("-",
         "Fraction of thermal power that is carried out by the coolant at the blanket interface";
@@ -15,18 +15,18 @@ FUSE.@actor_parameters_struct ActorIFEBlanket{T} begin
     verbose::FUSE.Entry{Bool} = FUSE.act_common_parameters(; verbose=false)
 end
 
-mutable struct ActorIFEBlanket{D,P} <: FUSE.SingleAbstractActor{D,P}
+mutable struct ActorBlanket{D,P} <: FUSE.SingleAbstractActor{D,P}
     dd::IFEdd.dd{D}
-    par::FUSE.OverrideParameters{P,FUSEparameters__ActorIFEBlanket{P}}
-    function ActorIFEBlanket(dd::IFEdd.dd{D}, par::FUSEparameters__ActorIFEBlanket{P}; kw...) where {D<:Real,P<:Real}
-        FUSE.logging_actor_init(ActorIFEBlanket)
+    par::FUSE.OverrideParameters{P,FUSEparameters__ActorBlanket{P}}
+    function ActorBlanket(dd::IFEdd.dd{D}, par::FUSEparameters__ActorBlanket{P}; kw...) where {D<:Real,P<:Real}
+        FUSE.logging_actor_init(ActorBlanket)
         par = FUSE.OverrideParameters(par; kw...)
         return new{D,P}(dd, par)
     end
 end
 
 """
-    ActorIFEBlanket(dd::IFEdd.dd, act::AbstractIFEParametersActors; kw...)
+    ActorBlanket(dd::IFEdd.dd, act::AbstractParametersActors; kw...)
 
 Calculates IFE blanket performance including tritium breeding ratio (TBR),
 thermal power, and neutron leakage using 1D neutronics models with spherical
@@ -35,14 +35,14 @@ geometry. Optimizes Li-6 enrichment to meet the target TBR in
 
 Stores data in `dd.blanket` and `dd.neutronics`.
 """
-function ActorIFEBlanket(dd::IFEdd.dd, act::AbstractIFEParametersActors; kw...)
-    actor = ActorIFEBlanket(dd, act.ActorIFEBlanket; kw...)
+function ActorBlanket(dd::IFEdd.dd, act::AbstractParametersActors; kw...)
+    actor = ActorBlanket(dd, act.ActorBlanket; kw...)
     FUSE.step(actor)
     FUSE.finalize(actor)
     return actor
 end
 
-function FUSE._step(actor::ActorIFEBlanket)
+function FUSE._step(actor::ActorBlanket)
     dd = actor.dd
     par = actor.par
     empty!(dd.blanket)
@@ -58,7 +58,7 @@ function FUSE._step(actor::ActorIFEBlanket)
     end
 
     if d2_idx === nothing
-        @warn "No blanket layer found in build for ActorIFEBlanket to do anything"
+        @warn "No blanket layer found in build for ActorBlanket to do anything"
         return actor
     end
 

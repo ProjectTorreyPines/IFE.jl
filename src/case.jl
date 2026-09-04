@@ -3,13 +3,13 @@
 # Ported from joey_fork/FUSE.jl/src/cases/IFE.jl.
 # Two entry points exposed to the workflow:
 #   * `FUSE.case_parameters(::Val{:IFE}; kw...)` — returns (ini, act)
-#   * `init_ife!(dd, ini, act; layers_spec=nothing)` — populates dd
+#   * `init!(dd, ini, act; layers_spec=nothing)` — populates dd
 
 """
     FUSE.case_parameters(::Val{:IFE}; kw...)
 
 IFE (Inertial Fusion Energy) demo case. Returns `(ini, act)` of types
-`IFEParametersInits` and `IFEParametersActors` respectively. Keyword
+`ParametersInits` and `ParametersActors` respectively. Keyword
 arguments map to `ini.pellet` / `ini.driver` fields plus
 `ini.core_profiles.ngrid`.
 """
@@ -30,8 +30,8 @@ function FUSE.case_parameters(
     tritium_breeding_ratio::Float64=1.05,
     ngrid::Int=101)
 
-    ini = IFEParametersInits()
-    act = IFEParametersActors()
+    ini = ParametersInits()
+    act = ParametersActors()
 
     ini.general.casename = "IFE_demo"
     ini.general.init_from = :scalars
@@ -56,24 +56,24 @@ function FUSE.case_parameters(
 
     # NOTE: no `act.ActorPowerNeeds.model = :IFE` — FUSE has no such option.
     # IFE handling is selected by method dispatch: `FUSE.ActorPowerNeeds(dd::IFEdd.dd, act)`
-    # in IFEdd's `power_needs_ife.jl` overrides the standard pipeline.
+    # in IFEdd's `power_needs.jl` overrides the standard pipeline.
 
     return ini, act
 end
 
 """
-    FUSE.consistent_ini_act!(ini::AbstractIFEParametersInits, act::AbstractIFEParametersActors)
+    FUSE.consistent_ini_act!(ini::AbstractParametersInits, act::AbstractParametersActors)
 
 IFE-flavored override of FUSE's `consistent_ini_act!`. The FUSE default
 (`(::ParametersAllInits, ::ParametersAllActors)`) unconditionally indexes
 into `ini.ec_launcher`, `ini.nb_unit`, `ini.ic_antenna`, etc. — none of
-which exist on the slim `IFEParametersInits`. IFE has no equivalent
+which exist on the slim `ParametersInits`. IFE has no equivalent
 launcher-vs-actuator length consistency to enforce (the driver is encoded
 in `ini.driver` instead), so this method is a no-op.
 
-Not type-piracy: `AbstractIFEParametersInits` is IFE-owned.
+Not type-piracy: `AbstractParametersInits` is IFE-owned.
 """
-function FUSE.consistent_ini_act!(ini::AbstractIFEParametersInits, act::AbstractIFEParametersActors)
+function FUSE.consistent_ini_act!(ini::AbstractParametersInits, act::AbstractParametersActors)
     return nothing
 end
 
@@ -102,7 +102,7 @@ function init_costing!(dd::IFEdd.dd, par::FUSEparameters__ActorCosting)
 end
 
 """
-    init_ife!(dd::IFEdd.dd, ini, act; layers_spec=nothing)
+    init!(dd::IFEdd.dd, ini, act; layers_spec=nothing)
 
 Initialize `dd` for a simple spherically-symmetric IFE demo case from `ini`
 parameters. Populates `dd.build`, `dd.pellets`, `dd.driver`,
@@ -112,7 +112,7 @@ parameters. Populates `dd.build`, `dd.pellets`, `dd.driver`,
 Pass `layers_spec` as a vector of NamedTuples `(name, type, thickness, material)`
 to override the default radial build.
 """
-function init_ife!(dd::IFEdd.dd, ini::AbstractIFEParametersInits, act::AbstractIFEParametersActors; layers_spec=nothing)
+function init!(dd::IFEdd.dd, ini::AbstractParametersInits, act::AbstractParametersActors; layers_spec=nothing)
     p = ini.pellet
     d = ini.driver
     ngrid = ini.core_profiles.ngrid

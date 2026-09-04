@@ -5,13 +5,13 @@ IFE (Inertial Fusion Energy) orchestration package built on top of `IFEdd`
 (data dictionary) and `FUSE` (actor framework + scaffolding).
 
 Provides:
-- IFE init parameter groups (`FUSEparameters__IFE__pellet`, `IFE__driver`)
-- IFE parameter containers (`IFEParametersInits`, `IFEParametersActors`)
-- IFE actors (`ActorIFEBlanket`, `ActorIFETransport`, `ActorCosting`)
+- IFE init parameter groups (`FUSEparameters__pellet`, `IFE__driver`)
+- IFE parameter containers (`ParametersInits`, `ParametersActors`)
+- IFE actors (`ActorBlanket`, `ActorTransport`, `ActorCosting`)
   defined via FUSE's `@actor_parameters_struct` macro
 - Dispatch override on `FUSE.ActorPowerNeeds` for `dd::IFEdd.dd`
 - `FUSE.case_parameters(::Val{:IFE})` registration
-- `init_ife!`, `init_costing!`, `extract_ife`
+- `init!`, `init_costing!`, `IMAS.extract`
 
 All IFE-specific dispatches dispatch on at least one type owned by `IFE` or
 `IFEdd` (e.g. `IFEdd.dd`, `IFEdd.driver`, `FUSEparameters__ActorIFE*`), so
@@ -21,12 +21,12 @@ Data containers and IDS types live in `IFEdd`; this package only adds
 parameters, actors, init logic, cases, and extract — i.e. orchestration.
 
 Load order matters (mirrors FUSE's actor → parameter container pattern):
-1. `parameters_ife.jl`         — IFE init parameter groups
-2. `parameters_inits_ife.jl`   — IFEParametersInits container
+1. `parameters.jl`             — IFE init parameter groups
+2. `parameters_inits.jl`       — ParametersInits container
 3. IFE actor files             — each defines a `FUSE.ParametersActor` subtype
-4. `parameters_actors_ife.jl`  — IFEParametersActors container (after actors,
+4. `parameters_actors.jl`      — ParametersActors container (after actors,
                                  so `@insert_subtype_members` sees them)
-5. `extract_ife.jl`            — IFE scalar extract functions
+5. `extract.jl`                — `IMAS.extract` method for `IFEdd.dd`
 """
 module IFE
 
@@ -43,36 +43,31 @@ using IFEdd
 using Printf: @sprintf
 
 # IFE-owned abstract supertypes — must precede any file that uses them
-# in dispatch signatures (actor outer constructors, init_ife!, …).
-include("abstract_ife_params.jl")
+# in dispatch signatures (actor outer constructors, init!, …).
+include("abstract_params.jl")
 
 # IFE-specific init parameter groups.
-include("parameters_ife.jl")
+include("parameters.jl")
 
 # Parameter container for FUSE.ParametersAllInits.
-include("parameters_inits_ife.jl")
+include("parameters_inits.jl")
 
 # IFE actors (each defines a FUSE.ParametersActor subtype).
-include("actor_ife_blanket.jl")
-include("actor_ife_transport.jl")
+include("actor_blanket.jl")
+include("actor_transport.jl")
 include("actor_costing.jl")
-include("power_needs_ife.jl")
-include("case_ife.jl")
+include("power_needs.jl")
+include("case.jl")
 
 # Parameter container for FUSE.ParametersAllActors — must follow IFE actor
 # files so `@insert_subtype_members FUSE.ParametersActor` enumerates them.
-include("parameters_actors_ife.jl")
+include("parameters_actors.jl")
 
 # IFE scalar extract functions.
-include("extract_ife.jl")
+include("extract.jl")
 
-export FUSEparameters__IFE__pellet, FUSEparameters__IFE__driver
-export AbstractIFEParametersInits, AbstractIFEParametersActors
-export IFEParametersInits, IFEParametersActors
-export ActorIFEBlanket, FUSEparameters__ActorIFEBlanket
-export ActorIFETransport, FUSEparameters__ActorIFETransport
-export ActorCosting, FUSEparameters__ActorCosting
-export init_ife!, init_costing!
-export ife_duty_cycle, extract_ife, IFEExtractFunctionsLibrary
+# Nothing is exported: like FUSE, everything is used module-qualified
+# (`IFE.ActorCosting`, `IFE.init!`, `IFE.ParametersInits`). The generic names
+# only make sense with the `IFE.` prefix in front of them.
 
 end # module

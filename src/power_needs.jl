@@ -30,7 +30,7 @@ function FUSE.electricity(drv::IFEdd.driver)
 end
 
 """
-    FUSE.ActorPowerNeeds(dd::IFEdd.dd, act::AbstractIFEParametersActors; kw...)
+    FUSE.ActorPowerNeeds(dd::IFEdd.dd, act::AbstractParametersActors; kw...)
 
 IFE-flavored outer constructor for `FUSE.ActorPowerNeeds`. Bypasses the
 standard magnetic-confinement HCD enumeration and model-branch logic in
@@ -41,7 +41,7 @@ for inertial fusion scenarios: driver wall-plug power and tritium handling.
 
 Stores results in `dd.balance_of_plant.power_electric_plant_operation`.
 """
-function FUSE.ActorPowerNeeds(dd::IFEdd.dd, act::AbstractIFEParametersActors; kw...)
+function FUSE.ActorPowerNeeds(dd::IFEdd.dd, act::AbstractParametersActors; kw...)
     actor = FUSE.ActorPowerNeeds(dd, act.ActorPowerNeeds; kw...)
     _step_ife_power_needs!(actor)
     FUSE.finalize(actor)

@@ -14,7 +14,7 @@
 # the last segment, so this naming yields the right field names automatically;
 # the slim container hand-lists the fields anyway.
 
-Base.@kwdef mutable struct FUSEparameters__IFE__pellet{T} <: FUSE.ParametersInit{T}
+Base.@kwdef mutable struct FUSEparameters__pellet{T} <: FUSE.ParametersInit{T}
     _parent::WeakRef = WeakRef(nothing)
     _name::Symbol = :pellet
     fuel_radius::FUSE.Entry{T} = FUSE.Entry{T}("m", "Total fuel radius (hot spot + DT ice layer)";
@@ -31,7 +31,7 @@ Base.@kwdef mutable struct FUSEparameters__IFE__pellet{T} <: FUSE.ParametersInit
         default=0.05, check=x -> @assert x > 0.0 "must be: Te_core > 0.0")
 end
 
-Base.@kwdef mutable struct FUSEparameters__IFE__driver{T} <: FUSE.ParametersInit{T}
+Base.@kwdef mutable struct FUSEparameters__driver{T} <: FUSE.ParametersInit{T}
     _parent::WeakRef = WeakRef(nothing)
     _name::Symbol = :driver
     n_drivers::FUSE.Entry{Int} = FUSE.Entry{Int}("-", "Number of driver beams (total energy split equally among them)";

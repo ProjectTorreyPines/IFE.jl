@@ -1,27 +1,27 @@
-# ActorIFETransport — 0-D IFE transport (Trickey et al. 2024 gain model).
+# ActorTransport — 0-D IFE transport (Trickey et al. 2024 gain model).
 #
 # Ported from joey_fork/FUSE.jl/src/actors/transport/ife_transport_actor.jl.
 # Sole adaptation: signature dispatches on `IFEdd.dd` instead of `IMAS.dd`.
 # The `IFEdd.dd` container embeds `core_profiles`, `core_sources`, `pellets`,
 # and the IFE-specific `driver` — all that this actor reads/writes.
 
-FUSE.@actor_parameters_struct ActorIFETransport{T} begin
+FUSE.@actor_parameters_struct ActorTransport{T} begin
     adiabat::FUSE.Entry{T} = FUSE.Entry{T}("-", "Adiabat of the compressed shell"; default=2.5)
     verbose::FUSE.Entry{Bool} = FUSE.act_common_parameters(; verbose=false)
 end
 
-mutable struct ActorIFETransport{D,P} <: FUSE.SingleAbstractActor{D,P}
+mutable struct ActorTransport{D,P} <: FUSE.SingleAbstractActor{D,P}
     dd::IFEdd.dd{D}
-    par::FUSE.OverrideParameters{P,FUSEparameters__ActorIFETransport{P}}
-    function ActorIFETransport(dd::IFEdd.dd{D}, par::FUSEparameters__ActorIFETransport{P}; kw...) where {D<:Real,P<:Real}
-        FUSE.logging_actor_init(ActorIFETransport)
+    par::FUSE.OverrideParameters{P,FUSEparameters__ActorTransport{P}}
+    function ActorTransport(dd::IFEdd.dd{D}, par::FUSEparameters__ActorTransport{P}; kw...) where {D<:Real,P<:Real}
+        FUSE.logging_actor_init(ActorTransport)
         par = FUSE.OverrideParameters(par; kw...)
         return new{D,P}(dd, par)
     end
 end
 
 """
-    ActorIFETransport(dd::IFEdd.dd, act::AbstractIFEParametersActors; kw...)
+    ActorTransport(dd::IFEdd.dd, act::AbstractParametersActors; kw...)
 
 Fills `dd.core_profiles` with a time history that mirrors the `dd.driver`
 pulse trace. Hot temperature scale found via bisection so the profile-integrated
@@ -29,14 +29,14 @@ fusion power matches the 0-D gain model (Trickey et al. 2024).
 
 Stores data in `dd.core_profiles` and `dd.core_sources`.
 """
-function ActorIFETransport(dd::IFEdd.dd, act::AbstractIFEParametersActors; kw...)
-    actor = ActorIFETransport(dd, act.ActorIFETransport; kw...)
+function ActorTransport(dd::IFEdd.dd, act::AbstractParametersActors; kw...)
+    actor = ActorTransport(dd, act.ActorTransport; kw...)
     FUSE.step(actor)
     FUSE.finalize(actor)
     return actor
 end
 
-function FUSE._step(actor::ActorIFETransport)
+function FUSE._step(actor::ActorTransport)
     dd = actor.dd
     par = actor.par
 
@@ -161,7 +161,7 @@ function FUSE._step(actor::ActorIFETransport)
         P_hi_prev = P_hi
     end
     if P_hi < P_fus_target
-        @warn "ActorIFETransport: target fusion power $(round(P_fus_target/1e6; digits=1)) MW unreachable via temperature scaling alone (max: $(round(P_hi/1e6; digits=3)) MW). Profiles set to maximum achievable."
+        @warn "ActorTransport: target fusion power $(round(P_fus_target/1e6; digits=1)) MW unreachable via temperature scaling alone (max: $(round(P_hi/1e6; digits=3)) MW). Profiles set to maximum achievable."
         α_hi /= 2.0
     else
         for _ in 1:60
@@ -207,7 +207,7 @@ function FUSE._step(actor::ActorIFETransport)
 
     if par.verbose
         P_fus_final = IMAS.fusion_power(dd)
-        @info "ActorIFETransport: I=$(round(I_15; digits=2))×10¹⁵ W/cm², pa=$(round(P_abl/1e11; digits=1)) Mbar, v=$(round(v_imp/1e3; digits=0)) km/s, ρR=$(round(rhoR_val; digits=2)) g/cm², fb=$(round(fb; digits=3)), G=$(round(G; digits=1)), P_fus_target=$(round(P_fus_target/1e6; digits=1)) MW, T_scale=$(round(α_final; digits=4)), P_fus=$(round(P_fus_final/1e6; digits=1)) MW"
+        @info "ActorTransport: I=$(round(I_15; digits=2))×10¹⁵ W/cm², pa=$(round(P_abl/1e11; digits=1)) Mbar, v=$(round(v_imp/1e3; digits=0)) km/s, ρR=$(round(rhoR_val; digits=2)) g/cm², fb=$(round(fb; digits=3)), G=$(round(G; digits=1)), P_fus_target=$(round(P_fus_target/1e6; digits=1)) MW, T_scale=$(round(α_final; digits=4)), P_fus=$(round(P_fus_final/1e6; digits=1)) MW"
     end
 
     return actor
