@@ -117,7 +117,7 @@ function FUSE._step(actor::ActorBlanket)
     blanket_model_1d = FUSE.NNeutronics.Blanket()
     energy_grid = FUSE.NNeutronics.energy_grid()
 
-    function target_TBR_ife(Li6::Real, target::Float64=0.0)
+    function target_TBR(Li6::Real, target::Float64=0.0)
         Li6 = FUSE.mirror_bound(abs(Li6), 0.0, 100.0 * par.max_Li6_enrichment_fraction)
         bm.layer[2].material = @sprintf("lithium-lead: Li6/7=%3.3f%%", Li6)
         tbr = FUSE.NNeutronics.TBR(blanket_model_1d, d1_thickness, d2_thickness, d3_thickness, Li6)
@@ -133,11 +133,11 @@ function FUSE._step(actor::ActorBlanket)
     end
 
     res = FUSE.Optim.optimize(
-        x -> target_TBR_ife(x[1], dd.requirements.tritium_breeding_ratio),
+        x -> target_TBR(x[1], dd.requirements.tritium_breeding_ratio),
         [50.0],
         FUSE.Optim.NelderMead()
     )
-    target_TBR_ife(abs(res.minimizer[1]))
+    target_TBR(abs(res.minimizer[1]))
 
     # ---- dd.neutronics ----
     # Use the wall layer outline (circular cross-section) as the first-wall geometry.

@@ -173,9 +173,9 @@ study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.ParametersA
         # case_parameters: IFE registers exactly one Val{:IFE} method.
         m_case = which(FUSE.case_parameters, (Val{:IFE},))
         @test parentmodule(m_case) === IFE
-        n_ife_case_methods = count(m -> parentmodule(m) === IFE,
+        n_case_methods = count(m -> parentmodule(m) === IFE,
                                    methods(FUSE.case_parameters))
-        @test n_ife_case_methods == 1
+        @test n_case_methods == 1
     end
 
     @testset "End-to-end IFE workflow" begin

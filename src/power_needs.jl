@@ -43,17 +43,17 @@ Stores results in `dd.balance_of_plant.power_electric_plant_operation`.
 """
 function FUSE.ActorPowerNeeds(dd::IFEdd.dd, act::AbstractParametersActors; kw...)
     actor = FUSE.ActorPowerNeeds(dd, act.ActorPowerNeeds; kw...)
-    _step_ife_power_needs!(actor)
+    _step_power_needs!(actor)
     FUSE.finalize(actor)
     return actor
 end
 
 """
-    _step_ife_power_needs!(actor::FUSE.ActorPowerNeeds)
+    _step_power_needs!(actor::FUSE.ActorPowerNeeds)
 
 IFE replacement for `FUSE._step(::ActorPowerNeeds)`. Internal to IFEdd.
 """
-function _step_ife_power_needs!(actor::FUSE.ActorPowerNeeds)
+function _step_power_needs!(actor::FUSE.ActorPowerNeeds)
     dd = actor.dd
     bop = dd.balance_of_plant
     bop_electric = bop.power_electric_plant_operation
