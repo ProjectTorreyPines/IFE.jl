@@ -211,7 +211,8 @@ println()
 ## Plot
 using Plots
 
-db = FUSE.load_study_database("test_ife_study/database.h5");
+db = FUSE.load_study_database("test_ife_study/database.h5";
+                              ini_type=IFE.ParametersInits, act_type=IFE.ParametersActors);
 
 df = db.df;
 
