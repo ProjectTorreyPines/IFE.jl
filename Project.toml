@@ -13,6 +13,12 @@ Measurements = "eff96d63-e80a-5855-80a2-b1b0885c5ab7"
 OrderedCollections = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
+[sources]
+FUSE = {rev = "master", url = "https://github.com/ProjectTorreyPines/FUSE.jl.git"}
+IFEdd = {rev = "master", url = "https://github.com/ProjectTorreyPines/IFEdd.jl.git"}
+IMAS = {rev = "master", url = "https://github.com/ProjectTorreyPines/IMAS.jl.git"}
+IMASdd = {rev = "master", url = "https://github.com/ProjectTorreyPines/IMASdd.jl.git"}
+
 [compat]
 IFEdd = "0.1"
 Measurements = "2"

@@ -33,8 +33,7 @@ end
 IFE's scalar extract library: 28 `IMAS.ExtractFunction` entries in seven groups
 (`:driver`, `:target`, `:plasma_peak`, `:power_avg`, `:neutronics`, `:bop`, `:costing`).
 
-`IMAS.extract(dd::IFEdd.dd)` uses it in place of the tokamak library, and it is what
-an IFE study passes as `FUSE.StudyDatabaseGenerator(...; extract_library=...)`.
+`IMAS.extract(dd::IFEdd.dd)` uses it in place of the tokamak library.
 Rebuilt in place by [`update_ExtractFunctionsLibrary!`](@ref).
 """
 const ExtractFunctionsLibrary = OrderedDict{Symbol,IMAS.ExtractFunction}()

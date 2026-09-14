@@ -12,7 +12,7 @@ FUSE's actors, initialization and study tooling all dispatch on the abstract `IM
 - `IFE.init!` — populates an `IFEdd.dd` from `ini`/`act`
 - `IFE.ActorTransport`, `IFE.ActorBlanket`, `IFE.ActorCosting` — 0-D gain model, TBR optimization, plant costing with uncertainty propagation
 - an `IFEdd.dd` method for `FUSE.ActorPowerNeeds`, and one for `IMAS.extract` that reports IFE metrics (driver energy, duty cycle, target gain, …) instead of tokamak ones
-- `FUSE.StudyDatabaseGenerator` scans over IFE cases, via its `dd_type` and `extract_library` options
+- `FUSE.StudyDatabaseGenerator` scans over IFE cases, via its `dd_type` option
 
 Nothing is exported. As with FUSE, everything is used module-qualified: `IFE.ActorCosting`, `IFE.init!`, `IFE.ParametersInits`.
 
@@ -35,13 +35,16 @@ IMAS.print_tiled(IMAS.extract(dd))
 
 See [`examples/basic_ife_case.jl`](examples/basic_ife_case.jl) for the annotated version, and [`examples/study_pellet_simple_scan.jl`](examples/study_pellet_simple_scan.jl) for a parameter scan on workers.
 
-## Status
+## Installation
 
-Private, pre-release. The study examples need a FUSE that accepts `dd_type` on `StudyDatabaseGenerator` (FUSE branch `feat/study_dd_type`); until that is merged and released, develop FUSE from that branch.
+Private, pre-release. `Project.toml` pins FUSE, IFEdd, IMAS and IMASdd to their `master` branches through `[sources]` (Julia ≥ 1.11), so a fresh clone fetches them straight from GitHub without a committed Manifest. `master` moves, so two clones made at different times can resolve different commits:
 
-## Development
-
-```julia
-] dev IFEdd IFE
-] test IFE
+```sh
+git clone https://github.com/ProjectTorreyPines/IFE.jl.git
+cd IFE.jl
+JULIA_PKG_USE_CLI_GIT=true julia --project -e 'using Pkg; Pkg.instantiate()'
 ```
+
+IFEdd is a private repository. `JULIA_PKG_USE_CLI_GIT=true` makes Pkg clone with the `git` command line, so the credentials your `git` already uses for `ProjectTorreyPines/IFEdd.jl` apply; Pkg's built-in git does not see them. The examples also use `Plots`, which is not an IFE dependency.
+
+`] dev` of a local checkout rewrites that package's `[sources]` entry to a local `path`; keep that change out of commits. To go back, restore `Project.toml` with git and run `] resolve` (`] free` refuses unregistered packages such as IFEdd).

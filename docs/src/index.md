@@ -44,7 +44,7 @@ IMAS.print_tiled(IMAS.extract(dd); terminal_width=100)
 | `FUSE.case_parameters` | a `Val{:IFE}` method |
 | `FUSE.ActorPowerNeeds` | a method for `dd::IFEdd.dd` |
 | `IMAS.extract` | a method for `dd::IFEdd.dd` |
-| `FUSE.StudyDatabaseGenerator` | its `dd_type` and `extract_library` options |
+| `FUSE.StudyDatabaseGenerator` | its `dd_type` option |
 | `FUSE.ParametersAllInits` / `ParametersAllActors` | `IFE.ParametersInits` / `IFE.ParametersActors` are concrete subtypes |
 
 Where FUSE dispatches on the abstract type, IFE adds a method. Where FUSE used to
