@@ -26,3 +26,6 @@ coverage/
 # Local study / scan outputs
 scan_simple/
 test_ife_study/
+
+# Local git worktrees
+.worktrees/
