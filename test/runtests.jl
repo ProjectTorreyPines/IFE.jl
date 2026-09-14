@@ -241,10 +241,12 @@ study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.ParametersA
         # 9. Extract reproduces joey's metric set on a populated container.
         # Everything outside `:bop` must evaluate; the `:bop` group stays empty
         # until a thermal cycle runs and fills `balance_of_plant.power_plant`.
+        # Judged by `value` (NaN on failure): IMAS `extract` can report the `error`
+        # of a previous call, but the values are always this call's.
         xtract = IMAS.extract(dd)
-        failed = [k for (k, xf) in xtract if xf.error !== nothing]
+        failed = [k for (k, xf) in xtract if xf.value isa Real && isnan(xf.value)]
         @test all(xtract[k].group === :bop for k in failed)
-        @test count(xf -> xf.error === nothing, values(xtract)) == 24
+        @test length(xtract) - length(failed) == 24
 
         @test xtract[:E_driver].value ≈ ini.driver.energy / 1e6
         @test xtract[:n_beams].value == length(dd.driver.beam)
