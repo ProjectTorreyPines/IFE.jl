@@ -45,6 +45,6 @@ cd IFE.jl
 JULIA_PKG_USE_CLI_GIT=true julia --project -e 'using Pkg; Pkg.instantiate()'
 ```
 
-IFEdd is a private repository. `JULIA_PKG_USE_CLI_GIT=true` makes Pkg clone with the `git` command line, so the credentials your `git` already uses for `ProjectTorreyPines/IFEdd.jl` apply; Pkg's built-in git does not see them. The examples also use `Plots`, which is not an IFE dependency.
+IFEdd is a private repository. `JULIA_PKG_USE_CLI_GIT=true` makes Pkg clone with the `git` command line, so the credentials your `git` already uses for `ProjectTorreyPines/IFEdd.jl` apply; Pkg's built-in git does not see them.
 
 `] dev` of a local checkout rewrites that package's `[sources]` entry to a local `path`; keep that change out of commits. To go back, restore `Project.toml` with git and run `] resolve` (`] free` refuses unregistered packages such as IFEdd).
