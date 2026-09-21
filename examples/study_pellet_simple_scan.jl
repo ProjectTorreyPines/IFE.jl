@@ -7,20 +7,10 @@
 using Distributed
 addprocs(Threads.nthreads())
 
-@everywhere begin
-    using FUSE
-    using IFE
-    
-    
-
-
-    
-    using IFEdd, IMAS, IMASdd
-    const DataFrame = FUSE.DataFrames.DataFrame
-    const nrow      = FUSE.DataFrames.nrow
-    const ncol      = FUSE.DataFrames.ncol
-    using FUSE.SimulationParameters.Distributions
-end
+# Workers need whatever the workflow callback below names. `@everywhere` also
+# runs on the main process, so this one block covers the setup and the
+# postprocessing too.
+@everywhere using FUSE, IFE, IFEdd
 
 # -----------------------------------------------------------------------------
 # 1. IFE case + ONE scan parameter

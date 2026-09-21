@@ -42,21 +42,15 @@ addprocs(Threads.nthreads())
 # workers are added, but still let the same script scale up unchanged.
 
 @everywhere begin
-    using FUSE
-    using IFE
-    using IFEdd
-    using IMAS
-    using IMASdd
+    using FUSE, IFE, IFEdd
 
-    # Reuse FUSE's transitive deps so this script needs no extra packages
-    # in the IFE environment. Same idiom the FuseExamples notebooks use.
-    const DataFrame = FUSE.DataFrames.DataFrame
+    # DataFrames and Distributions are not IFE dependencies; reach them through
+    # FUSE rather than adding packages to the environment. Same idiom the
+    # FuseExamples notebooks use.
     const nrow = FUSE.DataFrames.nrow
     const ncol = FUSE.DataFrames.ncol
-
-    import FUSE: ProgressMeter
-    using Logging: Info, Error
     using FUSE.SimulationParameters.Distributions
+    using Logging: Info, Error
 end
 
 FUSE.logging(Info; actors=Error)
