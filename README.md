@@ -30,7 +30,7 @@ IFE.ActorBlanket(dd, act)       # TBR optimization -> blanket, neutronics
 FUSE.ActorPowerNeeds(dd, act)   # wall-plug power  -> balance_of_plant
 IFE.ActorCosting(dd, act)       # plant costing    -> costing
 
-IMAS.print_tiled(IMAS.extract(dd))
+IMAS.extract(dd)                # IFE's 28 metrics, tiled by the REPL
 ```
 
 See [`examples/basic_ife_case.jl`](examples/basic_ife_case.jl) for the annotated version, and [`examples/study_pellet_simple_scan.jl`](examples/study_pellet_simple_scan.jl) for a parameter scan on workers.

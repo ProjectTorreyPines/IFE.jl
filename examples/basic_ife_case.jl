@@ -34,14 +34,20 @@ FUSE.ActorPowerNeeds(dd, act)    # wall-plug power  -> balance_of_plant
 IFE.ActorCosting(dd, act)        # plant costing (propagates uncertainty)
 
 # -----------------------------------------------------------------------------
-# 5. Key numbers, then the full IFE metric set. `IMAS.extract` on an IFEdd.dd
-#    uses IFE.ExtractFunctionsLibrary (28 entries) instead of the tokamak one.
+# 5. Key numbers, then the full IFE metric set. IFE does not define its own
+#    `extract`: it adds an `IMAS.extract` method for `IFEdd.dd`, so the ordinary
+#    call returns IFE's 28 metrics instead of the tokamak ones.
 # -----------------------------------------------------------------------------
 @show IMAS.fusion_power(dd) / 1e6          # MW, peak
 @show IFE.duty_cycle(dd)                   # τ_pulse / T_rep
 @show dd.costing.cost_direct_capital.cost  # M$
 
-IMAS.print_tiled(IMAS.extract(dd); terminal_width=100)
+xtract = IMAS.extract(dd)                  # an OrderedDict you can index
+@show xtract[:Q_target].value
+
+# The REPL prints this by itself; a script has to ask. `display` reaches the
+# same tiled table `IMAS.print_tiled` writes — it is what `show` calls.
+display(xtract)
 
 # -----------------------------------------------------------------------------
 # 6. Figures. Loading Plots activates IFEdd's recipe extension, so the IFE-owned
