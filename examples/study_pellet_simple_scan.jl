@@ -90,8 +90,12 @@ inis = [item.ini for item in db.items]
 #    containers read back out of the database draw themselves.
 # -----------------------------------------------------------------------------
 using Plots
-plot(inis; each_size=(800,500))
 
+# The scan inputs: where the 50 cases landed in `ini.driver.energy`, against the
+# distribution they were drawn from. The recipe is SimulationParameters' own —
+# it dispatches on `AbstractParameters`, which IFE's `ParametersInits` subtypes,
+# so the scan inputs plot with nothing IFE-specific involved.
+inis_fig = plot(inis; each_size=(800, 500))
 
 p1 = scatter(E_drive ./ 1e6, Pfus ./ 1e9;
              xlabel="Driver energy [MJ]", ylabel="P_fusion [GW]",
@@ -108,6 +112,7 @@ case_fig = plot(plot(db.items[weakest].dd; title="Lowest drive energy"),
                 plot(db.items[strongest].dd; title="Highest drive energy");
                 layout=(1, 2), size=(1100, 450))
 
+savefig(inis_fig, joinpath(sty.save_folder, "scan_inputs.png"))
 savefig(scan_fig, joinpath(sty.save_folder, "scan_summary.png"))
 savefig(case_fig, joinpath(sty.save_folder, "chamber_extremes.png"))
 @info "wrote figures" folder = sty.save_folder
