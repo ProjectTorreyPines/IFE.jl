@@ -37,7 +37,7 @@ See [`examples/basic_ife_case.jl`](examples/basic_ife_case.jl) for the annotated
 
 ## Installation
 
-Private, pre-release. `Project.toml` pins FUSE, IFEdd, IMAS and IMASdd to their `master` branches through `[sources]` (Julia ≥ 1.11), so a fresh clone fetches them straight from GitHub without a committed Manifest. `master` moves, so two clones made at different times can resolve different commits:
+Private, pre-release. `Project.toml` resolves FUSE, IFEdd, IMAS and IMASdd from GitHub through `[sources]` (Julia ≥ 1.11), so a fresh clone fetches them without a committed Manifest. IFEdd, IMAS and IMASdd come from `master`; FUSE comes from `feat/study_ini_act_type`, which lets the study examples read a database back into IFE's `ini`/`act` containers — move it to `master` once that branch is merged. Branches move, so two clones made at different times can resolve different commits:
 
 ```sh
 git clone https://github.com/ProjectTorreyPines/IFE.jl.git

@@ -4,6 +4,14 @@ FUSE = "e64856f0-3bb8-4376-b4b7-c03396503992"
 IFE = "e0af53bf-5497-48c6-9e62-bc06a9b1a075"
 IFEdd = "b7ef78e8-7dbb-4c2e-aaed-bb48b048103f"
 IMAS = "13ead8c1-b7d1-41bb-a6d0-5b8b65ed587a"
+IMASdd = "c5a45a97-b3f9-491c-b9a7-aa88c3bc0067"
+
+[sources]
+FUSE = {rev = "feat/study_ini_act_type", url = "https://github.com/ProjectTorreyPines/FUSE.jl.git"}
+IFE = {path = ".."}
+IFEdd = {rev = "master", url = "https://github.com/ProjectTorreyPines/IFEdd.jl.git"}
+IMAS = {rev = "master", url = "https://github.com/ProjectTorreyPines/IMAS.jl.git"}
+IMASdd = {rev = "master", url = "https://github.com/ProjectTorreyPines/IMASdd.jl.git"}
 
 [compat]
 Documenter = "1"
