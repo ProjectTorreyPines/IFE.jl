@@ -85,7 +85,10 @@ inis = [item.ini for item in db.items]
 
 @info "Scan summary" N=length(E_drive) E_min_MJ=minimum(E_drive)/1e6 E_max_MJ=maximum(E_drive)/1e6 Pfus_min_GW=minimum(Pfus)/1e9 Pfus_max_GW=maximum(Pfus)/1e9
 
-## Plot (uncomment to actually render):
+# -----------------------------------------------------------------------------
+# 6. Plot. Loading Plots also activates IFEdd's recipe extension, so the
+#    containers read back out of the database draw themselves.
+# -----------------------------------------------------------------------------
 using Plots
 plot(inis; each_size=(800,500))
 
@@ -96,4 +99,15 @@ p1 = scatter(E_drive ./ 1e6, Pfus ./ 1e9;
 p2 = scatter(E_drive ./ 1e6, cost_lif;
              xlabel="Driver energy [MJ]", ylabel="Capital cost [G\$]",
              label="")
-plot(p1, p2; layout=(1,2), size=(900, 350))
+scan_fig = plot(p1, p2; layout=(1,2), size=(900, 350))
+
+# `item.dd` is a full `IFEdd.dd` rebuilt from HDF5, so the IFE-owned IDS plot
+# exactly as they do before saving — the round trip, end to end.
+weakest, strongest = argmin(E_drive), argmax(E_drive)
+case_fig = plot(plot(db.items[weakest].dd; title="Lowest drive energy"),
+                plot(db.items[strongest].dd; title="Highest drive energy");
+                layout=(1, 2), size=(1100, 450))
+
+savefig(scan_fig, joinpath(sty.save_folder, "scan_summary.png"))
+savefig(case_fig, joinpath(sty.save_folder, "chamber_extremes.png"))
+@info "wrote figures" folder = sty.save_folder

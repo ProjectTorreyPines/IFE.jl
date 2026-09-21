@@ -263,3 +263,11 @@ scatter(fuel_radius .* 1e6, gain;
         colorbar_title = "Driver energy [MJ]",
         label = "")
 
+# Plot 4: the machine behind the best point. `dds` are full `IFEdd.dd` rebuilt
+# from HDF5, and Plots activates IFEdd's recipe extension, so the IFE-owned IDS
+# draw themselves — chamber layers, driver beams and target capsule.
+best = argmax(gain)
+plot(plot(dds[best]), plot(dds[best].driver);
+     layout = (1, 2), size = (1100, 450),
+     plot_title = "Highest gain: $(round(gain[best]; digits=1))")
+

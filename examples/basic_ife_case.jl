@@ -42,3 +42,21 @@ IFE.ActorCosting(dd, act)        # plant costing (propagates uncertainty)
 @show dd.costing.cost_direct_capital.cost  # M$
 
 IMAS.print_tiled(IMAS.extract(dd); terminal_width=100)
+
+# -----------------------------------------------------------------------------
+# 6. Figures. Loading Plots activates IFEdd's recipe extension, so the IFE-owned
+#    IDS draw themselves. The recipes live in IFEdd next to the schema they
+#    read, and Plots is their only trigger — IMAS is not involved.
+# -----------------------------------------------------------------------------
+using Plots
+
+chamber = plot(dd)                  # layers, driver beams, target capsule
+build_cx = plot(dd.build)           # the concentric build on its own
+build_radial = plot(dd.build; cx=false)   # the same build as a radial bar chart
+power = plot(dd.driver)             # wall plug -> launched -> absorbed
+
+# `plot` only builds the object when this file is run as a script, so write the
+# figure out as well — that also makes the example checkable without a display.
+figure = plot(chamber, power; layout=(1, 2), size=(1100, 450))
+savefig(figure, "ife_basic_case.png")
+@info "wrote ife_basic_case.png" n_layers = length(dd.build.layer) n_beams = length(dd.driver.beam)

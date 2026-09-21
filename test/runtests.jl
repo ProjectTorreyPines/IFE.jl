@@ -4,7 +4,10 @@ using IFEdd
 using IMASdd
 using IMAS
 using FUSE
+using Plots
 import Measurements
+
+nseries(p) = length(p.series_list)
 
 # Workflow for the StudyDatabaseGenerator testset. Top level so it is an ordinary
 # function. The study only needs a populated container; the full actor sequence
@@ -254,6 +257,29 @@ study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.ParametersA
         @test 0.0 < xtract[:duty_cycle].value < 1.0
         @test xtract[:Q_target].value > 0.0
         @test xtract[:TBR].value > 0.0
+
+        # 10. The figures `examples/basic_ife_case.jl` draws. The recipes live in
+        # IFEdd's Plots extension; IFE always has Plots loaded because FUSE
+        # depends on it, so the extension is active here without any extra step.
+        @test Base.get_extension(IFEdd, :IFEddPlotsExt) !== nothing
+
+        # one filled circle per build layer, or a span plus a boundary each
+        @test nseries(plot(dd.build)) == length(dd.build.layer)
+        @test nseries(plot(dd.build; cx=false)) == 2 * length(dd.build.layer)
+
+        # driver power flow: `:bar` expands into the bars plus their markers
+        @test nseries(plot(dd.driver)) == 2
+
+        # chamber view: every build layer, one path per beam, one shape per
+        # capsule shell. A capsule whose shells stop short of the centre gets a
+        # synthetic hot spot, which this one does not need.
+        chamber = plot(dd)
+        n_shells = length(dd.pellets.time_slice[].pellet[1].layer)
+        @test nseries(chamber) == length(dd.build.layer) + length(dd.driver.beam) + n_shells
+
+        labels = [s[:label] for s in chamber.series_list]
+        @test count(==("Driver beams"), labels) == 1          # labelled once, not per beam
+        @test all(uppercasefirst(l.name) in labels for l in dd.build.layer)
     end
 
     @testset "StudyDatabaseGenerator on IFEdd.dd" begin
