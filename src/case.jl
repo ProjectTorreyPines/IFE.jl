@@ -15,9 +15,9 @@ arguments map to `ini.pellet` / `ini.driver` fields plus
 """
 function FUSE.case_parameters(
     ::Val{:IFE};
-    fuel_radius::Float64=100e-6,
+    fuel_radius::Float64=1000e-6,
     hotspot_fraction::Float64=0.3,
-    ablator_thickness::Float64=900e-6,
+    ablator_thickness::Float64=400e-6,
     ablator_material::String="HDC",
     rep_rate::Float64=10.0,
     Te_core::Float64=0.05,

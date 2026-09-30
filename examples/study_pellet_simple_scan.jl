@@ -47,7 +47,7 @@ mkpath(sty.save_folder)
     IFE.init!(dd, ini, act)
     IFE.ActorTransport(dd, act)
     IFE.ActorBlanket(dd, act)
-    FUSE.ActorPowerNeeds(dd, act)
+    IFE.ActorBalanceOfPlant(dd, act)
     IFE.ActorCosting(dd, act)
     return nothing
 end

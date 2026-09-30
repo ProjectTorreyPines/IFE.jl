@@ -18,11 +18,11 @@ Base.@kwdef mutable struct FUSEparameters__pellet{T} <: FUSE.ParametersInit{T}
     _parent::WeakRef = WeakRef(nothing)
     _name::Symbol = :pellet
     fuel_radius::FUSE.Entry{T} = FUSE.Entry{T}("m", "Total fuel radius (hot spot + DT ice layer)";
-        default=100e-6, check=x -> @assert x > 0.0 "must be: fuel_radius > 0.0")
+        default=1000e-6, check=x -> @assert x > 0.0 "must be: fuel_radius > 0.0")
     hotspot_fraction::FUSE.Entry{T} = FUSE.Entry{T}("-", "Fraction of fuel_radius occupied by the hot spot (rpellet = hotspot_fraction * fuel_radius)";
         default=0.3, check=x -> @assert 0.0 < x < 1.0 "must be: 0 < hotspot_fraction < 1")
     ablator_thickness::FUSE.Entry{T} = FUSE.Entry{T}("m", "Thickness of the outer ablator shell";
-        default=900e-6, check=x -> @assert x > 0.0 "must be: ablator_thickness > 0.0")
+        default=400e-6, check=x -> @assert x > 0.0 "must be: ablator_thickness > 0.0")
     ablator_material::FUSE.Entry{String} = FUSE.Entry{String}("-", "Ablator material label (e.g. \"CH\", \"Be\", \"HDC\")";
         default="HDC")
     rep_rate::FUSE.Entry{T} = FUSE.Entry{T}("Hz", "Target repetition rate";

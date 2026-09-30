@@ -7,7 +7,7 @@ IFE (Inertial Fusion Energy) orchestration package built on top of `IFEdd`
 Provides:
 - IFE init parameter groups (`FUSEparameters__pellet`, `IFE__driver`)
 - IFE parameter containers (`ParametersInits`, `ParametersActors`)
-- IFE actors (`ActorBlanket`, `ActorTransport`, `ActorCosting`)
+- IFE actors (`ActorBlanket`, `ActorTransport`, `ActorBalanceOfPlant`, `ActorCosting`)
   defined via FUSE's `@actor_parameters_struct` macro
 - Dispatch override on `FUSE.ActorPowerNeeds` for `dd::IFEdd.dd`
 - `FUSE.case_parameters(::Val{:IFE})` registration
@@ -54,9 +54,11 @@ include("parameters_inits.jl")
 
 # IFE actors (each defines a FUSE.ParametersActor subtype).
 include("actor_blanket.jl")
+include("trickey_gain.jl")
 include("actor_transport.jl")
 include("actor_costing.jl")
 include("power_needs.jl")
+include("actor_balance_of_plant.jl")
 include("case.jl")
 
 # Parameter container for FUSE.ParametersAllActors — must follow the actor

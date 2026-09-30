@@ -17,11 +17,10 @@
 #   ActorCosting        → IFE plant cost (IFE.ActorCosting, not FUSE's)
 #   ActorBlanket     → IFE blanket TBR / neutronics
 #   ActorTransport   → IFE 0-D gain model
-#   ActorPowerNeeds     → FUSE actor, IFEdd dispatches on IFEdd.dd
-#
-# Plausibly useful soon (magnetic-agnostic, plant-level):
-#   ActorBalanceOfPlant → BOP electric/thermal flow
-#   ActorThermalPlant   → thermal cycle modelling
+#   ActorPowerNeeds     → FUSE actor, IFE dispatches on IFEdd.dd
+#   ActorBalanceOfPlant → IFE plant balance (IFE.ActorBalanceOfPlant, not FUSE's)
+#   ActorThermalPlant   → FUSE thermal cycle, run by IFE.ActorBalanceOfPlant
+#   ActorNoOperation    → placeholder sub-actor ActorThermalPlant always builds
 
 mutable struct ParametersActors{T<:Real} <: AbstractParametersActors{T}
     _parent::WeakRef
@@ -31,9 +30,10 @@ mutable struct ParametersActors{T<:Real} <: AbstractParametersActors{T}
     ActorBlanket::FUSEparameters__ActorBlanket{T}
     ActorTransport::FUSEparameters__ActorTransport{T}
     ActorPowerNeeds::FUSE.FUSEparameters__ActorPowerNeeds{T}
-    # Plant-level, magnetic-agnostic — kept for future IFE use
-    ActorBalanceOfPlant::FUSE.FUSEparameters__ActorBalanceOfPlant{T}
+    # Plant-level, magnetic-agnostic: balance of plant and its sub-actors
+    ActorBalanceOfPlant::FUSEparameters__ActorBalanceOfPlant{T}
     ActorThermalPlant::FUSE.FUSEparameters__ActorThermalPlant{T}
+    ActorNoOperation::FUSE.FUSEparameters__ActorNoOperation{T}
 end
 
 function ParametersActors{T}() where {T<:Real}
@@ -44,8 +44,9 @@ function ParametersActors{T}() where {T<:Real}
         FUSEparameters__ActorBlanket{T}(),
         FUSEparameters__ActorTransport{T}(),
         FUSE.FUSEparameters__ActorPowerNeeds{T}(),
-        FUSE.FUSEparameters__ActorBalanceOfPlant{T}(),
+        FUSEparameters__ActorBalanceOfPlant{T}(),
         FUSE.FUSEparameters__ActorThermalPlant{T}(),
+        FUSE.FUSEparameters__ActorNoOperation{T}(),
     )
     FUSE.setup_parameters!(act)
     return act

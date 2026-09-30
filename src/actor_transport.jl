@@ -1,12 +1,13 @@
 # ActorTransport — 0-D IFE transport (Trickey et al. 2024 gain model).
 #
-# Ported from joey_fork/FUSE.jl/src/actors/transport/ife_transport_actor.jl.
-# Sole adaptation: signature dispatches on `IFEdd.dd` instead of `IMAS.dd`.
+# Ported from joey_fork/FUSE.jl/src/actors/transport/ife_transport_actor.jl,
+# synced with the FUSE `ife` branch through commit e534f56b4. Sole adaptation: signature dispatches on `IFEdd.dd` instead of `IMAS.dd`.
 # The `IFEdd.dd` container embeds `core_profiles`, `core_sources`, `pellets`,
 # and the IFE-specific `driver` — all that this actor reads/writes.
 
 FUSE.@actor_parameters_struct ActorTransport{T} begin
     adiabat::FUSE.Entry{T} = FUSE.Entry{T}("-", "Adiabat of the compressed shell"; default=2.5)
+    zoom::FUSE.Switch{Symbol} = FUSE.Switch{Symbol}([:none, :one_stage, :two_stage, :cbet], "-", "Focal-spot zooming option for ablation-pressure scaling"; default=:none)
     verbose::FUSE.Entry{Bool} = FUSE.act_common_parameters(; verbose=false)
 end
 
@@ -24,10 +25,28 @@ end
     ActorTransport(dd::IFEdd.dd, act::AbstractParametersActors; kw...)
 
 Fills `dd.core_profiles` with a time history that mirrors the `dd.driver`
-pulse trace. Hot temperature scale found via bisection so the profile-integrated
-fusion power matches the 0-D gain model (Trickey et al. 2024).
+pulse trace: slices where any beam has `power_launched > 0` receive hot
+compressed profiles, the rest receive the cold initial profiles.
 
-Stores data in `dd.core_profiles` and `dd.core_sources`.
+The 0-D gain model is the `TrickeyGain` module (Trickey et al., Phys. Plasmas 31,
+012702, 2024): `TrickeyGain.design(E_laser, adiabat, R_pellet)` bisects for the
+on-target intensity consistent with the pellet radius, evaluates the paper's
+scaling laws at the ignition-threshold implosion velocity (Eq. 30), and returns
+gain, areal density, burn fraction, unablated fuel mass, and IFAR. Derived target
+physics is written to `dd.summary.target`.
+
+Each beam's `pulse_length` is overwritten with the model-implied drive duration
+`τ = R₀ / v_imp` (Eq. 3); the `power_launched` traces are left untouched so they
+keep integrating to the beam energy on the driver time grid.
+
+The hot temperature scale is found once via bisection so that the per-shot fusion
+energy — the hot-slice fusion power integrated over the pulse trace's on-window —
+equals the model yield `G × E_laser`. This makes the cycle-averaged fusion power
+seen by downstream actors exact regardless of the time-grid resolution. If the
+yield is unreachable via temperature scaling of the compressed profiles, the actor
+errors rather than silently capping.
+
+Stores data in `dd.core_profiles`, `dd.core_sources`, `dd.summary` and `dd.driver`.
 """
 function ActorTransport(dd::IFEdd.dd, act::AbstractParametersActors; kw...)
     actor = ActorTransport(dd, act.ActorTransport; kw...)
@@ -45,7 +64,6 @@ function FUSE._step(actor::ActorTransport)
     beam = dd.driver.beam[1]
     (IMASdd.ismissing(beam, :energy) || IMASdd.ismissing(beam, :pulse_length)) && return actor
     E_laser = sum(b.energy for b in dd.driver.beam)  # total J per shot (all beams)
-    tau = beam.pulse_length                               # s (same for all beams)
 
     # --- read target radius ---
     isempty(dd.pellets.launcher) && return actor
@@ -54,33 +72,38 @@ function FUSE._step(actor::ActorTransport)
     R = launcher.shape.size[1]  # m
 
     # --- 0-D gain model (Trickey et al. 2024) ---
-    I_SI  = E_laser / (tau * π * R^2)       # W/m²
-    I_15  = I_SI / 1e19                      # 10^15 W/cm²  (paper units)
-    E_MJ  = E_laser / 1e6                    # MJ            (paper units)
-    α     = par.adiabat
+    d = TrickeyGain.design(E_laser / 1e6, par.adiabat, R * 1e6; zoom=par.zoom)
 
-    # ablation pressure, Eq. 14: pa(Mbar) = 238 * I_15^0.72
-    P_abl = 238 * I_15^0.72 * 1e11          # Pa
-    pa    = P_abl / 1e13                     # 100 Mbar      (paper units)
+    I_SI     = d.I_out * 1e4    # W/cm² → W/m²
+    P_abl    = d.p_a * 1e11     # Mbar  → Pa
+    v_imp    = d.v_imp * 1e3    # km/s  → m/s
+    rhoR_SI  = d.rhoR * 10.0    # g/cm² → kg/m²
+    m_fuel   = d.M_f * 1e-6     # mg    → kg
+    fb       = d.f_burn
+    G        = d.gain
 
-    # implosion velocity
-    v_imp = 350e3 * sqrt(P_abl / (200e11)) / sqrt(α)   # m/s
-    v     = v_imp / 3e5                      # 300 km/s      (paper units)
+    # --- enforce pulse length consistent with the gain model ---
+    # Eq. 3 (4π R0³ I0 = E_laser v_imp) implies a drive duration τ = R0 / v_imp:
+    # the time the laser delivers E_laser at the intensity the model was evaluated at.
+    # power_launched is left untouched: the trace integrates to the beam energy on
+    # the driver time grid, which is what downstream cycle-averaging sees.
+    tau = (d.R_0 * 1e-6) / v_imp    # s
+    for b in dd.driver.beam
+        b.pulse_length = tau
+    end
 
-    # areal density, Eq. 21
-    rhoR_val = 1.85 * E_MJ^0.33 * pa^0.41 * I_15^(-0.33) * v^0.16 * α^(-0.55)  # g/cm²
-
-    # burn fraction
-    fb = rhoR_val / (rhoR_val + 6.67)
-
-    # gain, Eq. 36
-    G = 340 * E_MJ^0.33 * pa^0.83 * I_15^(-1.33) * α^(-0.36) / ((rhoR_val + 6.67) * v^1.07)
-
-    # Instantaneous fusion power during the laser pulse
-    P_fus_target = G * E_laser / tau    # W
+    # --- per-shot fusion energy target ---
+    # Match energy, not instantaneous power: downstream actors (e.g. ActorBlanket)
+    # cycle-average the fusion power by trapezoidal integration over the time grid,
+    # so the hot-slice power must spread the model yield G·E_laser over the trace's
+    # on-window for the per-shot fusion energy to come out exactly G·E_laser.
+    driver_times = dd.driver.time
+    laser_on = [sum(b.power_launched[i] for b in dd.driver.beam) > 0 ? 1.0 : 0.0 for i in eachindex(driver_times)]
+    dt_hot = FUSE.trapz(driver_times, laser_on)   # s, effective on-window of the pulse trace
+    dt_hot > 0.0 || return actor                  # no laser power at any time point
+    P_fus_target = G * E_laser / dt_hot           # W on hot slices → ∫P_fus dt = G·E_laser per shot
 
     # --- ensure core_profiles has a slice for every driver time point ---
-    driver_times = dd.driver.time
     for t in driver_times
         if !(t in dd.core_profiles.time)
             IMAS.new_timeslice!(dd.core_profiles, t)
@@ -101,22 +124,9 @@ function FUSE._step(actor::ActorTransport)
     # --- compressed fuel sphere radius from areal density + mass conservation ---
     # rho_c * R_c = rhoR  and  m_fuel = rho_c * (4π/3) * R_c^3
     # → R_c = sqrt(3 * m_fuel / (4π * rhoR_SI))
-    # Computed before bisection so compressed density is used during the search.
-    R_c = R  # fallback: no compression
-    pellet_obj = dd.pellets.time_slice[].pellet[1]
-    if length(pellet_obj.layer) >= 3 &&
-            !IMASdd.ismissing(pellet_obj.layer[1], :thickness) &&
-            !IMASdd.ismissing(pellet_obj.layer[2], :thickness) &&
-            !IMASdd.ismissing(pellet_obj.layer[3], :thickness)
-        R_hotspot    = pellet_obj.layer[1].thickness   # hot-spot radius (innermost void)
-        t_fuel       = pellet_obj.layer[2].thickness   # DT fuel layer
-        R_fuel_inner = R_hotspot
-        R_fuel_outer = R_hotspot + t_fuel
-        rho_DT   = 213.0  # kg/m³, cryogenic liquid DT
-        m_fuel   = rho_DT * (4π / 3) * (R_fuel_outer^3 - R_fuel_inner^3)
-        rhoR_SI  = rhoR_val * 10.0  # g/cm² → kg/m²
-        R_c = sqrt(3.0 * m_fuel / (4π * rhoR_SI))
-    end
+    # m_fuel is the model's unablated fuel mass (Eq. 13), self-consistent with rhoR.
+    R_c = sqrt(3.0 * m_fuel / (4π * rhoR_SI))
+    isfinite(R_c) && R_c > 0 || (R_c = R)  # fallback: no compression
     rho_tor = cp1d_init.grid.rho_tor_norm
     V_hot = @. (4π / 3) * (rho_tor * R_c)^3
     A_hot = @. 4π * (rho_tor * R_c)^2
@@ -169,18 +179,34 @@ function FUSE._step(actor::ActorTransport)
         P_hi_prev = P_hi
     end
     if P_hi < P_fus_target
-        @warn "ActorTransport: target fusion power $(round(P_fus_target/1e6; digits=1)) MW unreachable via temperature scaling alone (max: $(round(P_hi/1e6; digits=3)) MW). Profiles set to maximum achievable."
-        α_hi /= 2.0  # last good bracket
-    else
-        for _ in 1:60
-            α_mid = (α_lo + α_hi) / 2
-            (α_hi - α_lo) / α_hi < 1e-6 && break
-            P_fus_at_scale(α_mid) < P_fus_target ? (α_lo = α_mid) : (α_hi = α_mid)
-        end
+        error("ActorTransport: target fusion power $(round(P_fus_target/1e12; digits=2)) TW " *
+              "(yield G·E = $(round(G * E_laser / 1e6; digits=2)) MJ over $(round(dt_hot*1e9; digits=2)) ns) " *
+              "is unreachable via temperature scaling of the compressed profiles " *
+              "(max achievable: $(round(P_hi/1e12; digits=3)) TW). " *
+              "The design point cannot be represented in core_profiles; revisit target/driver parameters.")
+    end
+    # bisect to rtol ~ 1e-6
+    for _ in 1:60
+        α_mid = (α_lo + α_hi) / 2
+        (α_hi - α_lo) / α_hi < 1e-6 && break
+        P_fus_at_scale(α_mid) < P_fus_target ? (α_lo = α_mid) : (α_hi = α_mid)
     end
     α_final = (α_lo + α_hi) / 2
     Te_hot = Te_cold .* α_final
     Ti_hot = [Ti_cold[k] .* α_final for k in eachindex(Ti_cold)]
+
+    # --- write derived target physics to dd.summary.target ---
+    tgt = dd.summary.target
+    tgt.intensity          = I_SI
+    tgt.ablation_pressure  = P_abl
+    tgt.implosion_velocity = v_imp
+    tgt.areal_density      = rhoR_SI
+    tgt.burn_fraction      = fb
+    tgt.gain               = G
+    tgt.compressed_radius  = R_c
+    tgt.ifar               = d.IFAR
+    tgt.convergence_ratio  = R / R_c
+    tgt.temperature_scale  = α_final
 
     # --- fill every time slice: hot when laser is on, cold otherwise ---
     t_last_on = t_on
@@ -216,7 +242,7 @@ function FUSE._step(actor::ActorTransport)
 
     if par.verbose
         P_fus_final = IMAS.fusion_power(dd)
-        @info "ActorTransport: I=$(round(I_15; digits=2))×10¹⁵ W/cm², pa=$(round(P_abl/1e11; digits=1)) Mbar, v=$(round(v_imp/1e3; digits=0)) km/s, ρR=$(round(rhoR_val; digits=2)) g/cm², fb=$(round(fb; digits=3)), G=$(round(G; digits=1)), P_fus_target=$(round(P_fus_target/1e6; digits=1)) MW, T_scale=$(round(α_final; digits=4)), P_fus=$(round(P_fus_final/1e6; digits=1)) MW"
+        @info "ActorTransport: I=$(round(d.I_out/1e15; digits=2))×10¹⁵ W/cm², pa=$(round(d.p_a; digits=1)) Mbar, v=$(round(d.v_imp; digits=0)) km/s (v_min=$(round(d.v_min; digits=0))), τ_pulse=$(round(tau*1e9; digits=2)) ns, τ=$(round(d.tau; digits=1)), IFAR=$(round(d.IFAR; digits=1)), M_f=$(round(d.M_f; digits=2)) mg, ρR=$(round(d.rhoR; digits=2)) g/cm², fb=$(round(fb; digits=3)), G=$(round(G; digits=1)), yield=$(round(G * E_laser / 1e6; digits=1)) MJ over $(round(dt_hot*1e9; digits=2)) ns, T_scale=$(round(α_final; digits=4)), P_fus=$(round(P_fus_final/1e12; digits=2)) TW"
     end
 
     return actor

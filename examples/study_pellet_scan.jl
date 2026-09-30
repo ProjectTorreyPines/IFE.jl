@@ -92,7 +92,7 @@ function _single_case_demo(ini, act)
     IFE.init!(dd, ini_test, act)
     IFE.ActorTransport(dd, act)
     IFE.ActorBlanket(dd, act)
-    FUSE.ActorPowerNeeds(dd, act)
+    IFE.ActorBalanceOfPlant(dd, act)
     IFE.ActorCosting(dd, act)
     @info "Single test case" fuel_radius=ini_test.pellet.fuel_radius driver_energy=ini_test.driver.energy cost_lifetime_GUSD=round(dd.costing.cost_lifetime/1e3; digits=2) CoE=round(dd.costing.levelized_CoE; digits=4)
     return dd
@@ -146,7 +146,7 @@ mkpath(sty.save_folder)
     IFE.init!(dd, ini, act)
     IFE.ActorTransport(dd, act)
     IFE.ActorBlanket(dd, act)
-    FUSE.ActorPowerNeeds(dd, act)
+    IFE.ActorBalanceOfPlant(dd, act)
     IFE.ActorCosting(dd, act)
     return nothing
 end

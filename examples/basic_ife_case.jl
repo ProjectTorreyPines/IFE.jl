@@ -25,12 +25,12 @@ dd = IFEdd.dd()
 IFE.init!(dd, ini, act)
 
 # -----------------------------------------------------------------------------
-# 4. The actor chain. Three are IFE's own; ActorPowerNeeds is FUSE's, reached
-#    through an `IFEdd.dd` method IFE adds.
+# 4. The actor chain, all IFE's own. ActorBalanceOfPlant runs FUSE's thermal
+#    cycle and IFE's power needs (FUSE.ActorPowerNeeds, via an `IFEdd.dd` method).
 # -----------------------------------------------------------------------------
 IFE.ActorTransport(dd, act)      # 0-D gain model   -> core_profiles
 IFE.ActorBlanket(dd, act)        # TBR optimization -> blanket, neutronics
-FUSE.ActorPowerNeeds(dd, act)    # wall-plug power  -> balance_of_plant
+IFE.ActorBalanceOfPlant(dd, act) # thermal cycle + wall-plug power -> balance_of_plant
 IFE.ActorCosting(dd, act)        # plant costing (propagates uncertainty)
 
 # -----------------------------------------------------------------------------

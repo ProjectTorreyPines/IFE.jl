@@ -27,7 +27,7 @@ IFE.init!(dd, ini, act)
 
 IFE.ActorTransport(dd, act)     # 0-D gain model   -> core_profiles
 IFE.ActorBlanket(dd, act)       # TBR optimization -> blanket, neutronics
-FUSE.ActorPowerNeeds(dd, act)   # wall-plug power  -> balance_of_plant
+IFE.ActorBalanceOfPlant(dd, act) # thermal cycle + wall-plug power -> balance_of_plant
 IFE.ActorCosting(dd, act)       # plant costing    -> costing
 
 IMAS.extract(dd)                # IFE metrics, tiled by the REPL

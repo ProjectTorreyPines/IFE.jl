@@ -1,6 +1,7 @@
 # ActorCosting — IFE plant costing (PROCESS methodology + ARIES accounts).
 #
-# Ported from joey_fork/FUSE.jl/src/actors/costing/ife_costing_actor.jl.
+# Ported from joey_fork/FUSE.jl/src/actors/costing/ife_costing_actor.jl,
+# synced with the FUSE `ife` branch through commit 3a24035c2.
 # Single-container signature: `dd::IFEdd.dd`. Helpers (DollarAdjust, future_dollars,
 # bop_powers, cost_*_ARIES) are accessed via FUSE namespace and rely on the
 # Phase 3 signature relaxations on FUSE side.
@@ -38,8 +39,8 @@ FUSE.@actor_parameters_struct ActorCosting{T} begin
         FUSE.Entry{Measurement{Float64}}("M\$", "Fixed capital cost of IFE driver system at zero drive energy (1990 US\$)"; default=154.3 ± 30.0)
     driver_cost_per_MJ::FUSE.Entry{Measurement{Float64}} =
         FUSE.Entry{Measurement{Float64}}("M\$/MJ", "Variable capital cost of IFE driver per MJ of drive energy (1990 US\$)"; default=111.4 ± 20.0)
-    cost_per_pellet::FUSE.Entry{Measurement{Float64}} =
-        FUSE.Entry{Measurement{Float64}}("\$", "Target fabrication cost per pellet"; default=0.0 ± 0.0)
+    cost_per_pellet::FUSE.Entry{Union{Symbol,Measurement{Float64}}} =
+        FUSE.Entry{Union{Symbol,Measurement{Float64}}}("\$", "Target fabrication cost per pellet, or `:GA` to interpolate the cost from the pellet radius"; default=0.0 ± 0.0)
 end
 
 # `ddR` is the uncertainty workspace: costs are computed on a `Measurement{Float64}`
@@ -78,6 +79,7 @@ PROCESS IFE costing methodology adapted to the ARIES cost account structure.
 
 **Direct Capital Costs:**
 - IFE reactor systems: all build layers (chamber, wall, blanket, shield, vessel) via volume-based unit costs
+- Lithium-6 enrichment: separative-work cost of enriching the PbLi breeder to the Li-6 level optimized by `ActorBlanket`
 - Driver system: linear cost model as a function of total drive energy, based on PROCESS defaults
 - Facility infrastructure: land, buildings, hot cells, heat transfer systems (shared with ARIES)
 - Balance of plant: power conversion equipment, electrical systems, fuel handling
@@ -146,6 +148,17 @@ function FUSE._step(actor::ActorCosting)
         sub.cost = driver_cost
     end
 
+    # Lithium-6 enrichment (separative work) cost
+    li6_enrichment = li6_enrichment_percent(dd)
+    blanket_layer_idx = findfirst(l -> !IMASdd.ismissing(l, :type) && l.type == Int(IMAS._blanket_), dd.build.layer)
+    if li6_enrichment !== missing && blanket_layer_idx !== nothing && !IMASdd.ismissing(dd.build.layer[blanket_layer_idx], :volume)
+        c = cost_direct_capital_IFE_enrichment(dd.build.layer[blanket_layer_idx].volume, li6_enrichment, da)
+        if c > 0.0
+            sub = resize!(reactor.subsystem, "name" => "lithium enrichment")
+            sub.cost = c
+        end
+    end
+
     ### Facility
     sys = resize!(cost_direct.system, "name" => "facility")
 
@@ -182,7 +195,17 @@ function FUSE._step(actor::ActorCosting)
     sub.yearly_cost = FUSE.cost_operations_ARIES(:blanket_replacement, blanket_cost, par.blanket_lifetime, da)
 
     rep_rate = isempty(dd.pellets.time_slice) ? zero(eltype(dd)) : dd.pellets.time_slice[].pellet[1].frequency
-    pellet_yearly_cost = par.cost_per_pellet * rep_rate * 3600.0 * 24.0 * 365.0 * cst.availability / 1e6  # M$
+    if par.cost_per_pellet === :GA
+        # GA interpolation of target fabrication cost as a function of pellet radius
+        @assert !isempty(dd.pellets.launcher) "cost_per_pellet=:GA requires a pellet in `dd.pellets.launcher`"
+        launcher = dd.pellets.launcher[1]
+        @assert !IMASdd.ismissing(launcher.shape, :size) && !isempty(launcher.shape.size) "cost_per_pellet=:GA requires `dd.pellets.launcher[1].shape.size`"
+        rpellets = launcher.shape.size[1] * 1e3  # m → mm
+        cost_per_pellet = 0.1975 + 0.00075 * rpellets^2 + 9.375e-5 * rpellets^3  # $ per pellet
+    else
+        cost_per_pellet = par.cost_per_pellet
+    end
+    pellet_yearly_cost = cost_per_pellet * rep_rate * 3600.0 * 24.0 * 365.0 * cst.availability / 1e6  # M$
     da.year_assessed = 2024
     sys = resize!(cost_ops.system, "name" => "target fabrication")
     sys.yearly_cost = FUSE.future_dollars(pellet_yearly_cost, da)
@@ -236,5 +259,65 @@ function cost_direct_capital_IFE(layer::IFEdd.AbstractIFEBuildLayer, da::FUSE.Do
     else
         return zero(T)
     end
+    return FUSE.future_dollars(cost, da)
+end
+
+"""
+    li6_enrichment_percent(dd::IFEdd.dd)
+
+Reads the optimized Li-6 enrichment (in %) that `ActorBlanket` stored in the blanket
+breeder material string (e.g. `"lithium-lead: Li6/7=30.000%"`). Returns `missing` when no
+enrichment information is available.
+"""
+function li6_enrichment_percent(dd::IFEdd.dd)
+    for bm in dd.blanket.module
+        for layer in bm.layer
+            if !IMASdd.ismissing(layer, :material)
+                m = match(r"Li6/7\s*=\s*([0-9.]+)", layer.material)
+                m !== nothing && return parse(Float64, m.captures[1])
+            end
+        end
+    end
+    return missing
+end
+
+"""
+    li6_enrichment_swu_per_kg(enrichment_percent::Real)
+
+Separative work units (SWU) required per kg of lithium to enrich natural lithium
+(7.42% Li-6) up to `enrichment_percent` Li-6, using the standard value-function
+isotope-separation model. Port of the PROCESS 2015 cost model (Kovari & Morris, FED 2014).
+"""
+function li6_enrichment_swu_per_kg(enrichment_percent::Real)
+    value(x) = (1.0 - 2.0 * x) * log((1.0 - x) / x)
+    feed_li6 = 0.0742           # Li-6 fraction of the natural-abundance feed
+    tail_li6 = feed_li6 * 0.75  # Li-6 fraction of the depleted tail (waste)
+    product_li6 = min(enrichment_percent, 99.99) / 100.0
+    feed_to_product = (product_li6 - tail_li6) / (feed_li6 - tail_li6)
+    tail_to_product = (product_li6 - feed_li6) / (feed_li6 - tail_li6)
+    return value(product_li6) + tail_to_product * value(tail_li6) - feed_to_product * value(feed_li6)
+end
+
+"""
+    cost_direct_capital_IFE_enrichment(blanket_volume::Real, enrichment_percent::Real, da::FUSE.DollarAdjust)
+
+Direct capital cost [\$M] of enriching the lithium in the PbLi breeder to `enrichment_percent`
+Li-6, following the PROCESS 2015 separative-work cost model. The lithium inventory is taken
+as the blanket layer volume × PbLi density × lithium mass fraction. Returns zero below natural
+abundance (7.42% Li-6).
+"""
+function cost_direct_capital_IFE_enrichment(blanket_volume::Real, enrichment_percent::Real, da::FUSE.DollarAdjust{T}) where {T<:Real}
+    if enrichment_percent <= 7.42
+        return zero(T)
+    end
+    # Lithium inventory in the PbLi (Pb-17Li eutectic) breeder
+    pbli_density = FUSE.Material(:lithium_lead).density(; temperature=295.13)  # kg/m^3
+    lithium_mass_fraction = 0.0068                                             # Li mass fraction of Pb-17Li eutectic
+    mass_li = blanket_volume * pbli_density * lithium_mass_fraction            # kg
+
+    # Separative work and its cost (PROCESS reference: 0.1 M$ for 64.7 SWU, 2014 US$, exponent 0.8)
+    total_swu = li6_enrichment_swu_per_kg(enrichment_percent) * mass_li
+    cost = 0.1 * (total_swu / 64.7)^0.8
+    da.year_assessed = 2014
     return FUSE.future_dollars(cost, da)
 end

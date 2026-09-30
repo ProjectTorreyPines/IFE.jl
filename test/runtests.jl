@@ -22,6 +22,7 @@ study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.ParametersA
         @test isdefined(IFE, :FUSEparameters__ActorBlanket)
         @test isdefined(IFE, :ActorTransport)
         @test isdefined(IFE, :ActorCosting)
+        @test isdefined(IFE, :ActorBalanceOfPlant)
 
         # Init parameter groups
         @test isdefined(IFE, :FUSEparameters__pellet)
@@ -63,7 +64,7 @@ study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.ParametersA
         @test ini.pellet isa IFE.FUSEparameters__pellet{Float64}
         @test ini.driver isa IFE.FUSEparameters__driver{Float64}
         # Default values from port
-        @test ini.pellet.fuel_radius == 100e-6
+        @test ini.pellet.fuel_radius == 1000e-6
         @test ini.driver.energy == 1.8e6
         # Magnetic-only groups must NOT be present in slim container
         for f in (:equilibrium, :pf_active, :tf, :oh, :build, :hcd, :rampup,
@@ -86,9 +87,11 @@ study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.ParametersA
         @test !(act.ActorCosting isa FUSE.FUSEparameters__ActorCosting)
         # FUSE actors used by IFE workflow
         @test act.ActorPowerNeeds isa FUSE.ParametersActor
-        # Plant-level magnetic-agnostic actors kept for future use
-        @test act.ActorBalanceOfPlant isa FUSE.ParametersActor
+        # IFE's own balance-of-plant group, not FUSE's; FUSE's thermal cycle under it
+        @test act.ActorBalanceOfPlant isa IFE.FUSEparameters__ActorBalanceOfPlant{Float64}
+        @test !(act.ActorBalanceOfPlant isa FUSE.FUSEparameters__ActorBalanceOfPlant)
         @test act.ActorThermalPlant isa FUSE.ParametersActor
+        @test act.ActorNoOperation isa FUSE.ParametersActor
         # Magnetic-only actors must NOT be present in slim container
         for a in (:ActorEquilibrium, :ActorCHEASE, :ActorFRESCO, :ActorPedestal,
                   :ActorFluxMatcher, :ActorTFcoils, :ActorCostingARIES,
@@ -152,6 +155,8 @@ study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.ParametersA
         @test !(std_act.ActorBlanket isa IFE.FUSEparameters__ActorBlanket)
         @test std_act.ActorCosting isa FUSE.FUSEparameters__ActorCosting
         @test !(std_act.ActorCosting isa IFE.FUSEparameters__ActorCosting)
+        @test std_act.ActorBalanceOfPlant isa FUSE.FUSEparameters__ActorBalanceOfPlant
+        @test !(std_act.ActorBalanceOfPlant isa IFE.FUSEparameters__ActorBalanceOfPlant)
 
         # ActorPowerNeeds(::IMAS.dd, ::FUSE.ParametersActors) must dispatch to FUSE,
         # not the IFE outer constructor.
@@ -217,12 +222,16 @@ study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.ParametersA
         @test !IMASdd.ismissing(dd.blanket.module[1].time_slice[1], :tritium_breeding_ratio)
         @test !isempty(dd.neutronics.first_wall.r)
 
-        # 7. ActorPowerNeeds with IFE dispatch override.
-        FUSE.ActorPowerNeeds(dd, act)
+        # 7. ActorBalanceOfPlant: FUSE's thermal cycle plus IFE power needs
+        # (driver), not FUSE's magnetic-confinement power needs.
+        IFE.ActorBalanceOfPlant(dd, act)
         bop_systems = dd.balance_of_plant.power_electric_plant_operation.system
-        @test !isempty(bop_systems)
-        hcd_idx = findfirst(s -> s.name == "HCD", bop_systems)
-        @test hcd_idx !== nothing
+        @test Set(s.name for s in bop_systems) == Set(["HCD", "tritium_handling"])
+        hcd = bop_systems[findfirst(s -> s.name == "HCD", bop_systems)]
+        @test IMAS.@ddtime(hcd.power) ≈ FUSE.electricity(dd.driver)
+        P_generated = IMAS.@ddtime(dd.balance_of_plant.power_plant.power_electric_generated)
+        @test P_generated > 0.0
+        @test IMAS.@ddtime(dd.balance_of_plant.power_electric_net) < P_generated
 
         # 8. ActorCosting runs and applies its own costing baseline.
         costing = IFE.ActorCosting(dd, act)
@@ -242,14 +251,14 @@ study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.ParametersA
         @test all(isconcretetype(fieldtype(typeof(costing), f)) for f in fieldnames(typeof(costing)))
 
         # 9. Extract reproduces joey's metric set on a populated container.
-        # Everything outside `:bop` must evaluate; the `:bop` group stays empty
-        # until a thermal cycle runs and fills `balance_of_plant.power_plant`.
+        # With the balance of plant run, every metric must evaluate.
         # Judged by `value` (NaN on failure): IMAS `extract` can report the `error`
         # of a previous call, but the values are always this call's.
         xtract = IMAS.extract(dd)
         failed = [k for (k, xf) in xtract if xf.value isa Real && isnan(xf.value)]
-        @test all(xtract[k].group === :bop for k in failed)
-        @test length(xtract) - length(failed) == 24
+        @test isempty(failed)
+        @test length(xtract) == 28
+        @test isfinite(xtract[:levelized_CoE].value)
 
         @test xtract[:E_driver].value ≈ ini.driver.energy / 1e6
         @test xtract[:n_beams].value == length(dd.driver.beam)
