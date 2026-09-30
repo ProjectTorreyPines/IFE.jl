@@ -68,7 +68,7 @@ db = FUSE.load_study_database(joinpath(sty.save_folder, "database.h5"), case_nam
                               ini_type=IFE.ParametersInits, act_type=IFE.ParametersActors)
 
 E_drive  = [sum(b.energy for b in item.dd.driver.beam) for item in db.items]   # J
-Pfus     = db.df[:, "Pfusion"]                                                     # W
+Pfus     = db.df[:, "P_fus_peak"] .* 1e9                                           # GW → W
 cost_lif = db.df[:, "capital_cost"]                                                # G$
 
 inis = [item.ini for item in db.items]

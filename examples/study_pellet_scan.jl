@@ -18,16 +18,16 @@
 #      `IMAS.dd()`) before invoking the workflow.
 #   4. A user-provided workflow function plugs in the IFE actor sequence.
 #   5. FUSE's own save mechanism writes the full `IFEdd.dd` to `database.h5`
-#      per case, and `IMAS.extract(dd, :all)` populates `study.dataframe`
-#      with the IFE-relevant scalar columns (Pfusion, TBR, cost_lifetime,
-#      levelized_CoE, …). No sidecar JSON needed.
+#      per case, and `IMAS.extract(dd, :all)` — which IFE extends for
+#      `IFEdd.dd` — populates `study.dataframe` with IFE's metric set
+#      (P_fus_peak, TBR, capital_cost, levelized_CoE, …). No sidecar JSON needed.
 #
 # Outputs
-#   study.dataframe          — N rows × ~140 cols (one row per case). Most
-#                              cols are magnetic-specific (NaN for IFE);
-#                              the IFE-relevant cols include Pfusion,
-#                              neutrons_peak, TBR, capital_cost,
-#                              levelized_CoE, thermal_cycle_type, …
+#   study.dataframe          — N rows (one per case): IFE's 28 extract
+#                              metrics (driver, target, plasma_peak,
+#                              power_avg, neutronics, bop, costing), plus
+#                              the IMAS objective and constraint functions
+#                              and FUSE's bookkeeping columns
 #   <save_folder>/database.h5 — full IFEdd.dd + ini + act per case (HDF5).
 #                              Load a case via
 #                              `dd, ini, act = FUSE.load(joinpath(save_folder, "case1"))`.
@@ -136,7 +136,7 @@ mkpath(sty.save_folder)
 # real `IFEdd.dd` and hands it to us. We populate it in place; FUSE's `run_case`
 # then takes care of:
 #   • `IMAS.extract(dd, :all)` → one row of `study.dataframe` per case
-#     (IFE-relevant scalars: Pfusion, TBR, cost_lifetime, levelized_CoE, …)
+#     (IFE's metric set: P_fus_peak, TBR, capital_cost, levelized_CoE, …)
 #   • `save_study_database(...)` → full `IFEdd.dd` + ini + act into `database.h5`
 @everywhere function workflow_pellet_scan(
     dd::IFEdd.dd,
@@ -164,9 +164,9 @@ FUSE.run(study)
 # -----------------------------------------------------------------------------
 # 6. Results — `study.dataframe`
 # -----------------------------------------------------------------------------
-# FUSE's run_case populated this with `IMAS.extract(dd, :all)` per case. Most
-# of the ~140 columns are magnetic-specific and are NaN/missing for IFE; we
-# filter to the columns that actually have data so the summary is readable.
+# FUSE's run_case populated this with `IMAS.extract(dd, :all)` per case: IFE's
+# metrics plus the IMAS objective and constraint functions, several of which are
+# magnetic-specific and NaN for IFE. Filter to the columns that have data.
 df = study.dataframe
 
 function relevant_columns(df)
@@ -220,7 +220,7 @@ fuel_radius   = [item.ini.pellet.fuel_radius for item in db.items]              
 ablator_th    = [item.ini.pellet.ablator_thickness for item in db.items]                 # m
 hotspot_frac  = [item.ini.pellet.hotspot_fraction for item in db.items]                  # -
 
-Pfusion       = db.df[:, "Pfusion"]
+Pfusion       = db.df[:, "P_fus_peak"] .* 1e9   # GW → W
 TBR           = db.df[:, "TBR"]
 cost_lifetime = db.df[:, "capital_cost"]
 

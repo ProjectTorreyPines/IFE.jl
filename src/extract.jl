@@ -132,5 +132,34 @@ methods all apply.
 - `:costing`     — capital cost and levelized cost of electricity
 """
 function IMAS.extract(dd::IFEdd.dd)
-    return IMAS.extract(dd, ExtractFunctionsLibrary)
+    return IMAS.extract(dd, :extract)
+end
+
+"""
+    IMAS.extract(dd::IFEdd.dd, library::Symbol)
+
+Same `library` options as `IMAS.extract(dd::IMAS.DD, library)`, with IFE's
+[`ExtractFunctionsLibrary`](@ref) in place of the tokamak one:
+
+  - `:extract` => `ExtractFunctionsLibrary`
+  - `:moopt` => `IMAS.ConstraintFunctionsLibrary` + `IMAS.ObjectiveFunctionsLibrary`
+  - `:all` => `ExtractFunctionsLibrary` + both of the above
+
+FUSE's study runners call `IMAS.extract(dd, :all)` for each case, so this is what
+fills `study.dataframe` and `extract.csv` when the workflow runs on an `IFEdd.dd`.
+"""
+function IMAS.extract(dd::IFEdd.dd, library::Symbol)
+    @assert library in (:extract, :moopt, :all) "library must be :extract, :moopt or :all"
+    library == :extract && return IMAS.extract(dd, ExtractFunctionsLibrary)
+    xtract = OrderedDict{Symbol,IMAS.ExtractFunction}()
+    if library == :all
+        merge!(xtract, ExtractFunctionsLibrary)
+    end
+    for cnst in values(IMAS.ConstraintFunctionsLibrary)
+        xtract[cnst.name] = IMAS.ExtractFunction(:constraints, cnst.name, "-", dd -> cnst(dd))
+    end
+    for objf in values(IMAS.ObjectiveFunctionsLibrary)
+        xtract[objf.name] = IMAS.ExtractFunction(:objectives, objf.name, "-", dd -> objf(dd))
+    end
+    return IMAS.extract(dd, xtract)
 end

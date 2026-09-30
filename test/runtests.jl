@@ -260,6 +260,14 @@ study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.ParametersA
         @test length(xtract) == 28
         @test isfinite(xtract[:levelized_CoE].value)
 
+        # FUSE's study runners call `IMAS.extract(dd, :all)`: IFE's metric set
+        # plus objectives/constraints, not the tokamak library.
+        xall = IMAS.extract(dd, :all)
+        @test all(haskey(xall, k) for k in keys(IFE.ExtractFunctionsLibrary))
+        @test !haskey(xall, :Pfusion)
+        @test xall[:P_electric_net].value == xtract[:P_electric_net].value
+        @test keys(IMAS.extract(dd, :extract)) == keys(xtract)
+
         @test xtract[:E_driver].value ≈ ini.driver.energy / 1e6
         @test xtract[:n_beams].value == length(dd.driver.beam)
         @test xtract[:ablator].value == ini.pellet.ablator_material
@@ -311,6 +319,9 @@ study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.ParametersA
 
         FUSE.run(study)
         @test study.dataframe[1, :status] == "success"
+        # the study's per-case extract is IFE's, not the tokamak library
+        @test "E_driver" in names(study.dataframe)
+        @test !("Pfusion" in names(study.dataframe))
 
         # The saved container comes back as `IFEdd.dd`: FUSE resolves the type
         # from the file's `concrete_type` attribute. `pattern` skips ini/act,
