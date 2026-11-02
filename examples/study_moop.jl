@@ -60,6 +60,7 @@ ini.pellet.ablator_thickness     = ini.pellet.ablator_thickness     ↔ [3e-4, 8
 # -----------------------------------------------------------------------------
 FUSE.IMAS.update_ObjectiveFunctionsLibrary!()
 FUSE.IMAS.update_ConstraintFunctionsLibrary!()
+IFE.add_ConstraintFunctions!()              # IFE's constraints, e.g. CFL[:max_ifar]
 
 OFL = deepcopy(FUSE.IMAS.ObjectiveFunctionsLibrary)
 CFL = deepcopy(FUSE.IMAS.ConstraintFunctionsLibrary)

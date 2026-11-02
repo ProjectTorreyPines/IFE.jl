@@ -125,9 +125,9 @@ study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.ParametersA
     end
 
     @testset "ExtractFunctionsLibrary — shape and grouping" begin
-        # Same shape as joey's: 28 entries across seven groups, returned as
+        # Joey's 28 entries plus IFAR, across seven groups, returned as
         # `ExtractFunction`s so IMAS's show / print_tiled / HDF5 save all apply.
-        @test length(IFE.ExtractFunctionsLibrary) == 28
+        @test length(IFE.ExtractFunctionsLibrary) == 29
         groups = unique(xf.group for xf in values(IFE.ExtractFunctionsLibrary))
         @test Set(groups) == Set([:driver, :target, :plasma_peak, :power_avg,
                                   :neutronics, :bop, :costing])
@@ -135,7 +135,7 @@ study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.ParametersA
         # An unpopulated container must not throw — failures are recorded per entry.
         out = IMAS.extract(IFEdd.dd())
         @test out isa AbstractDict{Symbol,IMAS.ExtractFunction}
-        @test length(out) == 28
+        @test length(out) == 29
     end
 
     @testset "Standard FUSE/IMAS path unaffected by IFE loading" begin
@@ -257,7 +257,7 @@ study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.ParametersA
         xtract = IMAS.extract(dd)
         failed = [k for (k, xf) in xtract if xf.value isa Real && isnan(xf.value)]
         @test isempty(failed)
-        @test length(xtract) == 28
+        @test length(xtract) == 29
         @test isfinite(xtract[:levelized_CoE].value)
 
         # FUSE's study runners call `IMAS.extract(dd, :all)`: IFE's metric set
@@ -268,12 +268,28 @@ study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.ParametersA
         @test xall[:P_electric_net].value == xtract[:P_electric_net].value
         @test keys(IMAS.extract(dd, :extract)) == keys(xtract)
 
+        # IFAR and its constraint. `max_ifar` has to survive the library rebuild that
+        # MOOP scripts run, which empties anything IFE registered.
+        ifar = dd.summary.target.ifar
+        @test xtract[:IFAR].value == ifar
+        @test xall[:max_ifar].value == max(0.0, ifar - 30.0)
+        IMAS.update_ConstraintFunctionsLibrary!()
+        @test !haskey(IMAS.ConstraintFunctionsLibrary, :max_ifar)
+        @test IMAS.extract(dd, :moopt)[:max_ifar].value == max(0.0, ifar - 30.0)
+
         @test xtract[:E_driver].value ≈ ini.driver.energy / 1e6
         @test xtract[:n_beams].value == length(dd.driver.beam)
         @test xtract[:ablator].value == ini.pellet.ablator_material
         @test 0.0 < xtract[:duty_cycle].value < 1.0
-        @test xtract[:Q_target].value > 0.0
         @test xtract[:TBR].value > 0.0
+
+        # Cycle-averaged powers: the per-shot energy is what's conserved, so Q_target
+        # is the model gain and the averages agree with what ActorBlanket integrated.
+        bmt = dd.blanket.module[1].time_slice[]
+        @test xtract[:Q_target].value ≈ dd.summary.target.gain rtol = 1e-4
+        @test xtract[:P_neutron_avg].value * 1e6 ≈ bmt.power_incident_neutrons
+        @test xtract[:P_fus_avg].value ≈ xtract[:P_neutron_avg].value + xtract[:P_alpha_avg].value
+        @test xtract[:peak_wall_flux_avg].value * 1e6 ≈ bmt.peak_wall_flux
 
         # 10. The figures `examples/basic_ife_case.jl` draws. The recipes live in
         # IFEdd's Plots extension; IFE always has Plots loaded because FUSE
@@ -297,6 +313,19 @@ study_workflow(dd::IFEdd.dd, ini::FUSE.ParametersAllInits, act::FUSE.ParametersA
         labels = [s[:label] for s in chamber.series_list]
         @test count(==("Driver beams"), labels) == 1          # labelled once, not per beam
         @test all(uppercasefirst(l.name) in labels for l in dd.build.layer)
+    end
+
+    @testset "Q_target does not depend on the trace's pulse length" begin
+        # ActorTransport replaces beam.pulse_length with the model's drive duration,
+        # which matches neither of these on-windows.
+        for driver_pulse_length in (10e-9, 30e-9)
+            ini, act = FUSE.case_parameters(:IFE; driver_pulse_length)
+            dd = IFEdd.dd()
+            IFE.init!(dd, ini, act)
+            IFE.ActorTransport(dd, act)
+            @test dd.driver.beam[1].pulse_length != driver_pulse_length
+            @test IMAS.extract(dd)[:Q_target].value ≈ dd.summary.target.gain rtol = 1e-4
+        end
     end
 
     @testset "StudyDatabaseGenerator on IFEdd.dd" begin

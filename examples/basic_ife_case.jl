@@ -36,7 +36,7 @@ IFE.ActorCosting(dd, act)        # plant costing (propagates uncertainty)
 # -----------------------------------------------------------------------------
 # 5. Key numbers, then the full IFE metric set. IFE does not define its own
 #    `extract`: it adds an `IMAS.extract` method for `IFEdd.dd`, so the ordinary
-#    call returns IFE's 28 metrics instead of the tokamak ones.
+#    call returns IFE's 29 metrics instead of the tokamak ones.
 # -----------------------------------------------------------------------------
 @show IMAS.fusion_power(dd) / 1e6          # MW, peak
 @show IFE.duty_cycle(dd)                   # τ_pulse / T_rep

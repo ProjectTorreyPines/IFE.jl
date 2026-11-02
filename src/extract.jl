@@ -18,6 +18,11 @@ using OrderedCollections: OrderedDict
 
 Return the IFE duty cycle `τ_pulse / T_rep` from `ife.driver`.
 Returns `NaN` if the driver is not populated.
+
+This describes the drive, not the simulated burn: `ActorTransport` overwrites
+`pulse_length` with the gain model's drive duration, which differs from the on-window
+of the pulse trace that the fusion power is spread over. To cycle-average a power,
+use [`cycle_average`](@ref), not this ratio.
 """
 function duty_cycle(ife::IFEdd.dd)
     isempty(ife.driver.beam) && return NaN
@@ -28,9 +33,21 @@ function duty_cycle(ife::IFEdd.dd)
 end
 
 """
+    cycle_average(power, ife::IFEdd.dd) -> Float64
+
+Average `power(cp1d)` over one repetition period by integrating over the
+`core_profiles` time slices, the same way `ActorBlanket` averages the neutron power.
+"""
+function cycle_average(power::Function, ife::IFEdd.dd)
+    times = ife.core_profiles.time
+    powers = [power(ife.core_profiles.profiles_1d[t]) for t in times]
+    return FUSE.trapz(times, powers) / (times[end] - times[1])
+end
+
+"""
     ExtractFunctionsLibrary
 
-IFE's scalar extract library: 28 `IMAS.ExtractFunction` entries in seven groups
+IFE's scalar extract library: 29 `IMAS.ExtractFunction` entries in seven groups
 (`:driver`, `:target`, `:plasma_peak`, `:power_avg`, `:neutronics`, `:bop`, `:costing`).
 
 `IMAS.extract(dd::IFEdd.dd)` uses it in place of the tokamak library.
@@ -74,24 +91,25 @@ function update_ExtractFunctionsLibrary!()
     EF(:target, :R_hotspot,      "mm",  dd -> dd.pellets.time_slice[].pellet[1].layer[1].thickness * 1e3)
     EF(:target, :ablator,        "-",   dd -> dd.pellets.time_slice[].pellet[1].layer[3].species[1].label)
     EF(:target, :rep_rate_pellet,"Hz",  dd -> dd.pellets.time_slice[].pellet[1].frequency)
+    EF(:target, :IFAR,           "-",   dd -> dd.summary.target.ifar)
 
     # --- hot-state (peak) plasma quantities at dd.global_time = τ_pulse ---
     EF(:plasma_peak, :Te0_peak,  "keV", dd -> dd.core_profiles.profiles_1d[].electrons.temperature[1] / 1e3)
     EF(:plasma_peak, :ne0_peak,  "m⁻³", dd -> dd.core_profiles.profiles_1d[].electrons.density_thermal[1])
     EF(:plasma_peak, :P_fus_peak,"GW",  dd -> IMAS.fusion_power(dd) / 1e9)
 
-    # --- duty-cycle-averaged power quantities ---
-    EF(:power_avg, :P_fus_avg,    "MW",  dd -> IMAS.fusion_power(dd) / 1e6 * duty_cycle(dd))
-    EF(:power_avg, :P_neutron_avg,"MW",  dd -> IMAS.fusion_neutron_power(dd) / 1e6 * duty_cycle(dd))
-    EF(:power_avg, :P_alpha_avg,  "MW",  dd -> IMAS.fusion_plasma_power(dd) / 1e6 * duty_cycle(dd))
+    # --- cycle-averaged power quantities ---
+    EF(:power_avg, :P_fus_avg,    "MW",  dd -> cycle_average(IMAS.fusion_power, dd) / 1e6)
+    EF(:power_avg, :P_neutron_avg,"MW",  dd -> cycle_average(IMAS.fusion_neutron_power, dd) / 1e6)
+    EF(:power_avg, :P_alpha_avg,  "MW",  dd -> cycle_average(IMAS.fusion_plasma_power, dd) / 1e6)
     EF(:power_avg, :Q_target,     "-",   dd -> IEFL[:P_fus_avg](dd) / IEFL[:P_driver_avg](dd))
 
     # --- neutronics ---
     EF(:neutronics, :TBR,         "-",   dd -> IMAS.@ddtime(dd.blanket.tritium_breeding_ratio))
+    # `wall_loading` is already cycle-averaged by ActorBlanket
     EF(:neutronics, :peak_wall_flux_avg, "MW/m²", dd -> begin
-        dc = duty_cycle(dd)
         maximum(sqrt.(dd.neutronics.time_slice[].wall_loading.flux_r .^ 2 .+
-                      dd.neutronics.time_slice[].wall_loading.flux_z .^ 2)) / 1e6 * dc
+                      dd.neutronics.time_slice[].wall_loading.flux_z .^ 2)) / 1e6
     end)
 
     # --- balance of plant ---
@@ -111,12 +129,29 @@ end
 update_ExtractFunctionsLibrary!()
 
 """
+    add_ConstraintFunctions!()
+
+Add IFE's constraints to `IMAS.ConstraintFunctionsLibrary`: `:max_ifar`, which limits
+the in-flight aspect ratio to below 30.
+
+`IMAS.update_ConstraintFunctionsLibrary!()` empties that library and rebuilds it from
+the IMAS list, so call this after it. `IMAS.extract(dd, :all)` and `:moopt` call this
+themselves, so the `max_ifar` column does not depend on the call order.
+"""
+function add_ConstraintFunctions!()
+    if !haskey(IMAS.ConstraintFunctionsLibrary, :max_ifar)
+        IMAS.ConstraintFunction(:max_ifar, "-", dd -> dd.summary.target.ifar, <, 30.0)
+    end
+    return IMAS.ConstraintFunctionsLibrary
+end
+
+"""
     IMAS.extract(dd::IFEdd.dd)
 
 Extend `IMAS.extract` for an IFE container: extract key scalar quantities for an IFE case from `dd`.
 
-Power quantities (fusion, neutron, alpha, wall flux) are duty-cycle-averaged:
-`<P> = P_peak × (τ_pulse / T_rep)`.
+Power quantities (fusion, neutron, alpha, wall flux) are cycle-averaged by integrating
+over the time slices, so `Q_target` equals the target gain from `ActorTransport`.
 
 Returns an `OrderedDict{Symbol,IMAS.ExtractFunction}` — the same type as
 `IMAS.extract(dd)` — so the standard `show`, `print_tiled` and HDF5 save
@@ -126,7 +161,7 @@ methods all apply.
 - `:driver`      — driver beam energy, repetition rate, pulse length, efficiencies
 - `:target`      — pellet geometry and repetition rate
 - `:plasma_peak` — hot-state plasma quantities at `dd.global_time = τ_pulse`
-- `:power_avg`   — duty-cycle-averaged power and target gain Q
+- `:power_avg`   — cycle-averaged power and target gain Q
 - `:neutronics`  — TBR and cycle-averaged peak wall flux
 - `:bop`         — balance-of-plant electric output and efficiency
 - `:costing`     — capital cost and levelized cost of electricity
@@ -151,6 +186,7 @@ fills `study.dataframe` and `extract.csv` when the workflow runs on an `IFEdd.dd
 function IMAS.extract(dd::IFEdd.dd, library::Symbol)
     @assert library in (:extract, :moopt, :all) "library must be :extract, :moopt or :all"
     library == :extract && return IMAS.extract(dd, ExtractFunctionsLibrary)
+    add_ConstraintFunctions!()
     xtract = OrderedDict{Symbol,IMAS.ExtractFunction}()
     if library == :all
         merge!(xtract, ExtractFunctionsLibrary)

@@ -23,7 +23,7 @@
 #      (P_fus_peak, TBR, capital_cost, levelized_CoE, …). No sidecar JSON needed.
 #
 # Outputs
-#   study.dataframe          — N rows (one per case): IFE's 28 extract
+#   study.dataframe          — N rows (one per case): IFE's 29 extract
 #                              metrics (driver, target, plasma_peak,
 #                              power_avg, neutronics, bop, costing), plus
 #                              the IMAS objective and constraint functions
